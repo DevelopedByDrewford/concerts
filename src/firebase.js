@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -22,14 +22,20 @@ const functions        = getFunctions(app);
 
 const googleProvider = new GoogleAuthProvider();
 
-function isMobileBrowser() {
-  return /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent);
+// Native Safari handles OAuth popups fine. Third-party browsers on iOS
+// (Chrome/CriOS, Firefox/FxiOS, Brave, Edge/EdgiOS, GSA) run inside WKWebView
+// which blocks popups — they need a full-page redirect instead.
+// Android browsers and all desktop browsers support popups.
+function needsRedirect() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua);
+  if (!isIOS) return false;
+  const isNativeSafari = /Version\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(ua);
+  return !isNativeSafari;
 }
 
-// Mobile browsers (all iOS browsers, Android Chrome) can't reliably open
-// OAuth popups — use a full-page redirect instead.
 export async function signInWithGoogle() {
-  if (isMobileBrowser()) {
+  if (needsRedirect()) {
     await signInWithRedirect(auth, googleProvider);
   } else {
     return signInWithPopup(auth, googleProvider);
@@ -73,6 +79,60 @@ export async function callChangeUsername(username) {
   const result = await fn({ username });
   return result.data;
 }
+
+// ── follows ───────────────────────────────────────────────────────────────────
+
+function followDocId(currentUid, targetUid) {
+  return `${currentUid}_${targetUid}`;
+}
+
+export async function getFollowStatus(currentUid, targetUid) {
+  const snap = await getDoc(doc(db, 'follows', followDocId(currentUid, targetUid)));
+  return snap.exists();
+}
+
+export async function followUser(currentUid, targetUid) {
+  await setDoc(doc(db, 'follows', followDocId(currentUid, targetUid)), {
+    followerId: currentUid,
+    followedId: targetUid,
+    followedAt: serverTimestamp(),
+  });
+}
+
+export async function unfollowUser(currentUid, targetUid) {
+  await deleteDoc(doc(db, 'follows', followDocId(currentUid, targetUid)));
+}
+
+export async function getFollowCounts(uid) {
+  const [followersSnap, followingSnap] = await Promise.all([
+    getDocs(query(collection(db, 'follows'), where('followedId', '==', uid))),
+    getDocs(query(collection(db, 'follows'), where('followerId', '==', uid))),
+  ]);
+  return { followerCount: followersSnap.size, followingCount: followingSnap.size };
+}
+
+async function _fetchProfiles(uids) {
+  if (!uids.length) return [];
+  const results = await Promise.all(
+    uids.map(async uid => {
+      const snap = await getDoc(doc(db, 'users', uid));
+      return snap.exists() ? { uid, ...snap.data() } : null;
+    })
+  );
+  return results.filter(Boolean);
+}
+
+export async function getFollowersList(uid) {
+  const snap = await getDocs(query(collection(db, 'follows'), where('followedId', '==', uid)));
+  return _fetchProfiles(snap.docs.map(d => d.data().followerId));
+}
+
+export async function getFollowingList(uid) {
+  const snap = await getDocs(query(collection(db, 'follows'), where('followerId', '==', uid)));
+  return _fetchProfiles(snap.docs.map(d => d.data().followedId));
+}
+
+// ── username lookup ───────────────────────────────────────────────────────────
 
 /**
  * Looks up a user by username. Checks usernameHistory for old handles that

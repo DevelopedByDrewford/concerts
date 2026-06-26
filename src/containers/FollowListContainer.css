@@ -1,0 +1,107 @@
+.follow-list {
+  position: relative;
+  z-index: 1;
+  animation: fadeUp .4s ease both;
+  padding-bottom: 40px;
+}
+
+.follow-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+}
+
+.follow-list__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: oklch(0.88 0.01 285);
+}
+
+.follow-list__header-spacer {
+  width: 36px;
+}
+
+.follow-list__loading,
+.follow-list__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  color: var(--c-text-dimmer);
+  font-size: 14px;
+}
+
+.follow-list__items {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.follow-list__item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 10px;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.follow-list__item:hover {
+  background: oklch(0.17 0.013 285 / 0.5);
+}
+
+.follow-list__item--no-profile {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.follow-list__avatar-wrap {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.follow-list__avatar-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.follow-list__avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.follow-list__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.follow-list__name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.follow-list__handle {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  margin-top: 2px;
+}
+
+.follow-list__chevron {
+  font-size: 20px;
+  color: var(--c-text-dimmest);
+}

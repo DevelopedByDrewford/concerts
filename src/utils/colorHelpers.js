@@ -25,3 +25,9 @@ export function tileStr(h1, h2, L) {
 export function avStr(h) {
   return `linear-gradient(135deg, oklch(0.62 0.18 ${h}), oklch(0.5 0.18 ${(h + 45) % 360}))`;
 }
+
+export function uidToHue(uid = '') {
+  let n = 0;
+  for (let i = 0; i < uid.length; i++) n = (n + uid.charCodeAt(i)) % 360;
+  return n;
+}

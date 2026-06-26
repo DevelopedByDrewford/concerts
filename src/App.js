@@ -1,11 +1,12 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, getGoogleRedirectResult, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername } from './firebase';
+import { auth, signInWithGoogle, getGoogleRedirectResult, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
 import ConcertContainer     from './containers/ConcertContainer';
 import UserProfileContainer from './containers/UserProfileContainer';
+import FollowListContainer  from './containers/FollowListContainer';
 import Lightbox   from './components/Lightbox';
 import LoginModal from './components/LoginModal';
 import Toast      from './components/Toast';
@@ -29,8 +30,14 @@ class App extends React.Component {
     editLoading:     false,
     avatarUploading: false,
     usernameStatus:  'idle',
-    publicUid:       null,
-    publicProfile:   null,
+    publicUid:         null,
+    publicProfile:     null,
+    followStatus:      null,   // null | 'loading' | 'following' | 'not-following'
+    followerCount:     null,
+    followingCount:    null,
+    followListType:    null,   // 'followers' | 'following'
+    followList:        [],
+    followListLoading: false,
   };
 
   _storedUsername = '';
@@ -133,7 +140,7 @@ class App extends React.Component {
           websiteLabel: data.websiteLabel || '',
           avatarUrl:    data.profilePhotoUrl || null,
         },
-      });
+      }, () => this._loadFollowData(data.uid));
     } catch {
       window.history.replaceState(null, '', '/');
     }
@@ -153,10 +160,83 @@ class App extends React.Component {
     if (!this.state.user) { this.setState({ loginModal: true }); return; }
     const username = this.state.profile.username || this._storedUsername;
     this._pushUrl(username ? `/@${username}` : '/');
-    this.setState({ screen: 'profile', lb: null, slide: 0, publicUid: null, publicProfile: null });
+    this.setState(
+      { screen: 'profile', lb: null, slide: 0, publicUid: null, publicProfile: null },
+      () => { if (this.state.user) this._loadFollowData(this.state.user.uid); }
+    );
   };
   goEditProfile = () => this.setState({ screen: 'editProfile', lb: null });
   setScreen     = (s) => this.setState({ screen: s });
+
+  // ── follow ───────────────────────────────────────────────────────────────────
+  _loadFollowData = async (targetUid) => {
+    const { user } = this.state;
+    const isSelf = user?.uid === targetUid;
+    this.setState({ followStatus: isSelf ? null : 'loading', followerCount: null, followingCount: null });
+    try {
+      const [counts, isFollowing] = await Promise.all([
+        getFollowCounts(targetUid),
+        (!isSelf && user) ? getFollowStatus(user.uid, targetUid) : Promise.resolve(null),
+      ]);
+      this.setState({
+        followerCount:  counts.followerCount,
+        followingCount: counts.followingCount,
+        followStatus:   isFollowing === null ? null : (isFollowing ? 'following' : 'not-following'),
+      });
+    } catch {
+      this.setState({ followStatus: null, followerCount: 0, followingCount: 0 });
+    }
+  };
+
+  handleFollow = async () => {
+    const { user, publicUid } = this.state;
+    if (!user || !publicUid) return;
+    this.setState({ followStatus: 'loading' });
+    try {
+      await followUser(user.uid, publicUid);
+      this.setState(s => ({ followStatus: 'following', followerCount: (s.followerCount ?? 0) + 1 }));
+    } catch {
+      this.flash('Could not follow — try again');
+      this.setState({ followStatus: 'not-following' });
+    }
+  };
+
+  handleUnfollow = async () => {
+    const { user, publicUid } = this.state;
+    if (!user || !publicUid) return;
+    this.setState({ followStatus: 'loading' });
+    try {
+      await unfollowUser(user.uid, publicUid);
+      this.setState(s => ({ followStatus: 'not-following', followerCount: Math.max(0, (s.followerCount ?? 1) - 1) }));
+    } catch {
+      this.flash('Could not unfollow — try again');
+      this.setState({ followStatus: 'following' });
+    }
+  };
+
+  openFollowList = async (type) => {
+    const { publicUid, user } = this.state;
+    const targetUid = publicUid || user?.uid;
+    if (!targetUid) return;
+    this.setState({ screen: 'followList', followListType: type, followList: [], followListLoading: true });
+    try {
+      const list = type === 'followers'
+        ? await getFollowersList(targetUid)
+        : await getFollowingList(targetUid);
+      this.setState({ followList: list, followListLoading: false });
+    } catch {
+      this.setState({ followListLoading: false });
+      this.flash('Failed to load list');
+    }
+  };
+
+  closeFollowList = () => this.setState({ screen: 'profile' });
+
+  openProfileFromList = (username) => {
+    if (!username) return;
+    this._pushUrl(`/@${username}`);
+    this._openUsernameProfile(username);
+  };
 
   // ── auth ─────────────────────────────────────────────────────────────────────
   openLoginModal  = () => this.setState({ loginModal: true });
@@ -339,11 +419,12 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
     const isUserProfile = screen === 'profile'  || screen === 'editProfile';
+    const isFollowList  = screen === 'followList';
 
     const isOwnProfile   = !publicUid || publicUid === user?.uid;
     const displayProfile = (!isOwnProfile && publicProfile) ? publicProfile : profile;
@@ -396,6 +477,9 @@ class App extends React.Component {
             galleries={isOwnProfile ? galleries : []}
             isOwn={isOwnProfile}
             slide={slide}
+            followStatus={followStatus}
+            followerCount={followerCount}
+            followingCount={followingCount}
             usernameStatus={usernameStatus}
             storedUsername={this._storedUsername}
             editLoading={editLoading}
@@ -408,7 +492,20 @@ class App extends React.Component {
             onUsernameChange={this.handleUsernameChange}
             onAvatarChange={this.handleAvatarChange}
             onSaveProfile={this.saveProfile}
+            onFollow={this.handleFollow}
+            onUnfollow={this.handleUnfollow}
+            onOpenFollowList={this.openFollowList}
             onFlash={this.flash}
+          />
+        )}
+
+        {isFollowList && (
+          <FollowListContainer
+            type={followListType}
+            list={followList}
+            loading={followListLoading}
+            onBack={this.closeFollowList}
+            onOpenProfile={this.openProfileFromList}
           />
         )}
 

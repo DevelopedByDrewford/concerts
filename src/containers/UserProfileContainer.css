@@ -104,6 +104,38 @@
   gap: 8px;
 }
 
+.profile__stat--link {
+  cursor: pointer;
+}
+.profile__stat--link:hover .profile__stat-value {
+  color: var(--c-link);
+}
+
+.profile__follow-btn {
+  padding: 9px 22px;
+  border-radius: var(--r-full);
+  background: var(--grad-accent);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: opacity .15s ease;
+}
+
+.profile__follow-btn--following {
+  background: var(--c-overlay);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-dim);
+  box-shadow: none;
+}
+
+.profile__follow-btn--loading {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .profile__edit-btn {
   padding: 9px 18px;
   border-radius: var(--r-full);

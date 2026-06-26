@@ -3,7 +3,7 @@ import './NavBar.css';
 
 export default function NavBar({ screen, onHome, onCreate, onProfile }) {
   const isHome    = screen === 'home';
-  const isProfile = screen === 'profile' || screen === 'editProfile';
+  const isProfile = screen === 'profile' || screen === 'editProfile' || screen === 'followList';
 
   return (
     <div className="nav-bar">

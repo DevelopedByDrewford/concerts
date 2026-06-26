@@ -5,10 +5,12 @@ import { coverStr, avStr } from '../utils/colorHelpers';
 export default function UserProfileContainer({
   screen,
   user, profile, galleries, isOwn = true, slide,
+  followStatus, followerCount, followingCount,
   usernameStatus, storedUsername,
   editLoading, avatarUploading,
   onGoBack, onGoEditProfile, onSetScreen, onSignOut,
   onSetProfileField, onUsernameChange, onAvatarChange, onSaveProfile,
+  onFollow, onUnfollow, onOpenFollowList,
   onFlash,
 }) {
   const avatarSrc   = profile.avatarUrl || user?.photoURL || null;
@@ -60,11 +62,19 @@ export default function UserProfileContainer({
                 )}
               </div>
             </div>
-            {isOwn && (
+            {isOwn ? (
               <div className="profile__actions">
                 <button onClick={onGoEditProfile} className="profile__edit-btn edit-btn">Edit</button>
                 <button onClick={onSignOut} className="profile__signout-btn">Out</button>
               </div>
+            ) : user && (
+              <button
+                onClick={followStatus === 'following' ? onUnfollow : onFollow}
+                disabled={!followStatus || followStatus === 'loading'}
+                className={`profile__follow-btn${followStatus === 'following' ? ' profile__follow-btn--following' : ''}${followStatus === 'loading' ? ' profile__follow-btn--loading' : ''}`}
+              >
+                {followStatus === 'loading' ? '…' : followStatus === 'following' ? 'Following' : 'Follow'}
+              </button>
             )}
           </div>
 
@@ -84,8 +94,14 @@ export default function UserProfileContainer({
 
           <div className="profile__stats">
             <div><span className="profile__stat-value">{galleries.length}</span> <span className="profile__stat-label">concerts</span></div>
-            <div><span className="profile__stat-value">{totalPhotos}</span> <span className="profile__stat-label">photos</span></div>
-            <div><span className="profile__stat-value">{totalVideos}</span> <span className="profile__stat-label">videos</span></div>
+            <div className="profile__stat--link" onClick={() => onOpenFollowList('followers')}>
+              <span className="profile__stat-value">{followerCount ?? '—'}</span>
+              <span className="profile__stat-label">followers</span>
+            </div>
+            <div className="profile__stat--link" onClick={() => onOpenFollowList('following')}>
+              <span className="profile__stat-value">{followingCount ?? '—'}</span>
+              <span className="profile__stat-label">following</span>
+            </div>
           </div>
         </div>
 
