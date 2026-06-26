@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, getGoogleRedirectResult, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
@@ -26,6 +26,7 @@ class App extends React.Component {
     user:            null,
     loginModal:      false,
     loginLoading:    false,
+    loginError:      null,
     profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null },
     editLoading:     false,
     avatarUploading: false,
@@ -50,20 +51,6 @@ class App extends React.Component {
 
     window.addEventListener('popstate', this._handlePopState);
     this._loadFromUrl(window.location.pathname);
-
-    // Pick up the result after a mobile redirect sign-in
-    getGoogleRedirectResult()
-      .then(result => {
-        if (result?.user) {
-          this.setState({ loginModal: false, screen: 'profile', slide: 0, lb: null, publicUid: null, publicProfile: null });
-          const username = this._storedUsername;
-          if (username) this._pushUrl(`/@${username}`);
-        }
-      })
-      .catch(err => {
-        console.error('Redirect sign-in error:', err);
-        this.flash('Sign-in failed — please try again');
-      });
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
@@ -242,16 +229,26 @@ class App extends React.Component {
   };
 
   // ── auth ─────────────────────────────────────────────────────────────────────
-  openLoginModal  = () => this.setState({ loginModal: true });
-  closeLoginModal = () => this.setState({ loginModal: false, loginLoading: false });
+  openLoginModal  = () => this.setState({ loginModal: true, loginError: null });
+  closeLoginModal = () => this.setState({ loginModal: false, loginLoading: false, loginError: null });
 
   handleGoogleSignIn = async () => {
-    this.setState({ loginLoading: true });
+    this.setState({ loginLoading: true, loginError: null });
     try {
       await signInWithGoogle();
-      this.setState({ loginModal: false, loginLoading: false, screen: 'profile', slide: 0, lb: null });
-    } catch {
-      this.setState({ loginLoading: false });
+      this.setState({ loginModal: false, loginLoading: false, loginError: null, screen: 'profile', slide: 0, lb: null });
+    } catch (err) {
+      const code = err?.code;
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // User dismissed the popup — reset silently, no error shown
+        this.setState({ loginLoading: false, loginError: null });
+      } else if (code === 'auth/popup-blocked') {
+        this.setState({ loginLoading: false, loginError: 'Your browser blocked the sign-in popup. Allow popups for this site and try again.' });
+      } else {
+        console.error('Sign-in error:', err);
+        this.setState({ loginLoading: false, loginError: null });
+        this.flash(`Sign-in failed${code ? ` (${code})` : ''} — try again`);
+      }
     }
   };
 
@@ -422,7 +419,7 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -526,6 +523,7 @@ class App extends React.Component {
         {loginModal && (
           <LoginModal
             loading={loginLoading}
+            error={loginError}
             onSignIn={this.handleGoogleSignIn}
             onClose={this.closeLoginModal}
           />

@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -22,29 +22,8 @@ const functions        = getFunctions(app);
 
 const googleProvider = new GoogleAuthProvider();
 
-// Native Safari handles OAuth popups fine. Third-party browsers on iOS
-// (Chrome/CriOS, Firefox/FxiOS, Brave, Edge/EdgiOS, GSA) run inside WKWebView
-// which blocks popups — they need a full-page redirect instead.
-// Android browsers and all desktop browsers support popups.
-function needsRedirect() {
-  const ua = navigator.userAgent;
-  const isIOS = /iPhone|iPad|iPod/.test(ua);
-  if (!isIOS) return false;
-  const isNativeSafari = /Version\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA/.test(ua);
-  return !isNativeSafari;
-}
-
-export async function signInWithGoogle() {
-  if (needsRedirect()) {
-    await signInWithRedirect(auth, googleProvider);
-  } else {
-    return signInWithPopup(auth, googleProvider);
-  }
-}
-
-// Call on app mount to pick up the result after a redirect sign-in.
-export function getGoogleRedirectResult() {
-  return getRedirectResult(auth);
+export function signInWithGoogle() {
+  return signInWithPopup(auth, googleProvider);
 }
 
 export function signOutUser() {

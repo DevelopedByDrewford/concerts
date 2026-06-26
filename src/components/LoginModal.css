@@ -104,38 +104,10 @@
   line-height: 1.5;
 }
 
-.modal-safari-prompt {
-  padding: 4px 0 8px;
-}
-
-.modal-safari-prompt__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--c-text);
-  margin: 0 0 10px;
-  line-height: 1.35;
-}
-
-.modal-safari-prompt__body {
-  font-size: 14px;
-  color: var(--c-text-muted);
-  margin: 0 0 20px;
-  line-height: 1.55;
-}
-
-.modal-copy-btn {
-  width: 100%;
-  padding: 14px 20px;
-  border-radius: var(--r-lg);
-  background: var(--c-accent, oklch(0.72 0.19 280));
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
-  transition: opacity .15s ease;
-}
-
-.modal-copy-btn:active {
-  opacity: 0.8;
+.modal-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: oklch(0.72 0.18 25);
+  line-height: 1.5;
+  text-align: center;
 }
