@@ -60,7 +60,10 @@ class App extends React.Component {
           if (username) this._pushUrl(`/@${username}`);
         }
       })
-      .catch(() => {});
+      .catch(err => {
+        console.error('Redirect sign-in error:', err);
+        this.flash('Sign-in failed — please try again');
+      });
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
