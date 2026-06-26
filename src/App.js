@@ -233,14 +233,20 @@ class App extends React.Component {
   closeLoginModal = () => this.setState({ loginModal: false, loginLoading: false, loginError: null });
 
   handleGoogleSignIn = async () => {
+    const dbg = (step, extra = {}) =>
+      localStorage.setItem('auth_debug', JSON.stringify({ step, t: Date.now(), ...extra }));
+
+    dbg('start');
     this.setState({ loginLoading: true, loginError: null });
     try {
+      dbg('popup_opened');
       await signInWithGoogle();
+      dbg('success');
       this.setState({ loginModal: false, loginLoading: false, loginError: null, screen: 'profile', slide: 0, lb: null });
     } catch (err) {
       const code = err?.code;
+      dbg('error', { code, message: err?.message });
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        // User dismissed the popup — reset silently, no error shown
         this.setState({ loginLoading: false, loginError: null });
       } else if (code === 'auth/popup-blocked') {
         this.setState({ loginLoading: false, loginError: 'Your browser blocked the sign-in popup. Allow popups for this site and try again.' });
