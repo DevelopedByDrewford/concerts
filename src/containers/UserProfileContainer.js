@@ -13,9 +13,7 @@ export default function UserProfileContainer({
   onFollow, onUnfollow, onOpenFollowList,
   onFlash,
 }) {
-  const avatarSrc   = profile.avatarUrl || user?.photoURL || null;
-  const totalPhotos = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'photo' && m.isOwn).length, 0);
-  const totalVideos = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'video' && m.isOwn).length, 0);
+  const avatarSrc = profile.avatarUrl || user?.photoURL || null;
 
   const favs = [];
   galleries.forEach(g => {
