@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -22,8 +22,23 @@ const functions        = getFunctions(app);
 
 const googleProvider = new GoogleAuthProvider();
 
-export function signInWithGoogle() {
-  return signInWithPopup(auth, googleProvider);
+function isMobileBrowser() {
+  return /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent);
+}
+
+// Mobile browsers (all iOS browsers, Android Chrome) can't reliably open
+// OAuth popups — use a full-page redirect instead.
+export async function signInWithGoogle() {
+  if (isMobileBrowser()) {
+    await signInWithRedirect(auth, googleProvider);
+  } else {
+    return signInWithPopup(auth, googleProvider);
+  }
+}
+
+// Call on app mount to pick up the result after a redirect sign-in.
+export function getGoogleRedirectResult() {
+  return getRedirectResult(auth);
 }
 
 export function signOutUser() {

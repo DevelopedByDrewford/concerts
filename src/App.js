@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername } from './firebase';
+import { auth, signInWithGoogle, getGoogleRedirectResult, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
@@ -43,6 +43,17 @@ class App extends React.Component {
 
     window.addEventListener('popstate', this._handlePopState);
     this._loadFromUrl(window.location.pathname);
+
+    // Pick up the result after a mobile redirect sign-in
+    getGoogleRedirectResult()
+      .then(result => {
+        if (result?.user) {
+          this.setState({ loginModal: false, screen: 'profile', slide: 0, lb: null, publicUid: null, publicProfile: null });
+          const username = this._storedUsername;
+          if (username) this._pushUrl(`/@${username}`);
+        }
+      })
+      .catch(() => {});
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
