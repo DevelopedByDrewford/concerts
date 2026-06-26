@@ -5,13 +5,13 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyDMrYYPUEMzE_xI9pFj9ugbMMgZXEkHLVw",
-  authDomain:        "concerts-dc206.firebaseapp.com",
-  databaseURL:       "https://concerts-dc206-default-rtdb.firebaseio.com",
-  projectId:         "concerts-dc206",
-  storageBucket:     "concerts-dc206.firebasestorage.app",
-  messagingSenderId: "796849248681",
-  appId:             "1:796849248681:web:0286c5ecbe1faf93daccb8",
+  apiKey:            process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain:        process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  databaseURL:       process.env.REACT_APP_FIREBASE_DATABASE_URL,
+  projectId:         process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket:     process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
 const app  = initializeApp(firebaseConfig);
