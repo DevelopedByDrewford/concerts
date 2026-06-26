@@ -59,7 +59,7 @@ class App extends React.Component {
         const isLegacy  = /\s/.test(rawStored) || rawStored !== rawStored.toLowerCase();
         const handle    = isLegacy ? '' : rawStored;
         this._storedUsername = handle;
-        this.setState({
+        this.setState(s => ({
           user,
           profile: {
             name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
@@ -70,7 +70,12 @@ class App extends React.Component {
             websiteLabel: stored?.websiteLabel  || '',
             avatarUrl:    stored?.profilePhotoUrl || null,
           },
-        });
+          // On WKWebView (Chrome/Brave iOS), signInWithPopup opens a new tab instead of
+          // a true popup — window.opener is null so Firebase can't postMessage the result
+          // back, leaving the promise permanently hung. Auth still completes via IndexedDB.
+          // If the modal is still open when we receive a user, close it here.
+          ...(s.loginModal ? { loginModal: false, loginLoading: false, loginError: null, screen: 'profile', slide: 0, lb: null } : {}),
+        }));
       } else {
         this._storedUsername = '';
         this.setState({ user: null, profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
