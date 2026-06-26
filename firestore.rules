@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ───────────────────────────────────────────────────────────
+
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isUid(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Fields that only Cloud Functions (Admin SDK) may write.
+    // In update context, checks that none of these are being changed.
+    function clientSafeGalleryUpdate() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly(['artistName', 'city', 'venue', 'monthYear']);
+    }
+
+    function clientSafeUserUpdate() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly(['username', 'profilePhotoUrl', 'bio', 'favoriteItemIds']);
+    }
+
+    // ── users/{uid} ───────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      allow read: if isAuthed();
+
+      allow create: if isUid(uid)
+        && request.resource.data.keys().hasOnly(
+             ['username', 'profilePhotoUrl', 'bio', 'favoriteItemIds'])
+        && !request.resource.data.keys().hasAny(['concertsAttendedCount']);
+
+      allow update: if isUid(uid) && clientSafeUserUpdate();
+
+      allow delete: if false;
+    }
+
+    // ── galleries/{galleryId} ─────────────────────────────────────────────
+
+    match /galleries/{galleryId} {
+      allow read: if isAuthed();
+
+      allow create: if isAuthed()
+        && request.resource.data.createdBy == request.auth.uid
+        // Clients supply only the human-readable fields; smug keys start null
+        && request.resource.data.keys().hasOnly(
+             ['artistName', 'city', 'venue', 'monthYear', 'createdBy',
+              'smugmugAlbumKey', 'smugmugAlbumUri', 'createdAt'])
+        && request.resource.data.smugmugAlbumKey == null
+        && request.resource.data.smugmugAlbumUri == null;
+
+      // Only the gallery creator may edit descriptive fields; smug keys
+      // are server-only and are excluded from the allowed change set.
+      allow update: if isAuthed()
+        && isUid(resource.data.createdBy)
+        && request.resource.data.createdBy == resource.data.createdBy
+        && clientSafeGalleryUpdate();
+
+      allow delete: if false;
+
+      // ── galleries/{galleryId}/items/{itemId} ─────────────────────────
+
+      match /items/{itemId} {
+        allow read: if isAuthed();
+        // All item writes happen via Cloud Functions (Admin SDK).
+        allow write: if false;
+      }
+    }
+
+    // ── userConcerts/{docId} ──────────────────────────────────────────────
+
+    match /userConcerts/{docId} {
+      // Users can read only their own attendance records.
+      allow read: if isAuthed() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // ── uploadJobs/{jobId} ────────────────────────────────────────────────
+
+    match /uploadJobs/{jobId} {
+      // Users can listen to their own upload jobs.
+      allow read: if isAuthed() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+  }
+}

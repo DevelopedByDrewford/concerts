@@ -1,0 +1,33 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── staging uploads ───────────────────────────────────────────────────
+    // Path: staging/{uid}/{galleryId}/{fileId}
+    // Clients write here; Cloud Function processes then moves/deletes.
+
+    match /staging/{uid}/{galleryId}/{fileId} {
+      allow read:   if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 3 * 1024 * 1024 * 1024   // 3 GB cap
+        && (request.resource.contentType.matches('image/.*') ||
+            request.resource.contentType.matches('video/.*'));
+
+      // Clients cannot overwrite or delete; Cloud Function handles cleanup.
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── backup path (server-managed) ─────────────────────────────────────
+    match /backup/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ── deny everything else ─────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

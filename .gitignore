@@ -24,3 +24,13 @@ yarn-error.log*
 
 # Local Netlify folder
 .netlify
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Cloud Functions build output and deps
+functions/lib/
+functions/node_modules/
