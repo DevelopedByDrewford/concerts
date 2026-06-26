@@ -1,5 +1,6 @@
 import React from 'react';
-import { serif, coverStr, avStr } from '../utils/colorHelpers';
+import './UserProfileContainer.css';
+import { coverStr, avStr } from '../utils/colorHelpers';
 
 export default function UserProfileContainer({
   screen,
@@ -10,9 +11,9 @@ export default function UserProfileContainer({
   onSetProfileField, onUsernameChange, onAvatarChange, onSaveProfile,
   onFlash,
 }) {
-  const avatarSrc    = profile.avatarUrl || user?.photoURL || null;
-  const totalPhotos  = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'photo' && m.isOwn).length, 0);
-  const totalVideos  = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'video' && m.isOwn).length, 0);
+  const avatarSrc   = profile.avatarUrl || user?.photoURL || null;
+  const totalPhotos = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'photo' && m.isOwn).length, 0);
+  const totalVideos = galleries.reduce((a, g) => a + g.media.filter(m => m.type === 'video' && m.isOwn).length, 0);
 
   const favs = [];
   galleries.forEach(g => {
@@ -24,55 +25,54 @@ export default function UserProfileContainer({
 
   if (screen === 'profile') {
     return (
-      <div style={{ position: 'relative', zIndex: 1, animation: 'fadeUp .5s ease both' }}>
+      <div className="profile">
 
-        {/* banner */}
-        <div style={{ position: 'relative', height: '150px', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', inset: 0, animation: 'ken 16s ease-in-out infinite alternate', background: coverStr(330, 285) }} />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(8,7,13,0.2),#08070d)' }} />
-          <button onClick={onGoBack} style={{ position: 'absolute', top: '18px', left: '18px', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(10,8,16,0.5)', backdropFilter: 'blur(8px)', border: '1px solid oklch(1 0 0/0.12)', fontSize: '18px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+        <div className="profile__banner">
+          <div className="profile__banner-cover" style={{ background: coverStr(330, 285) }} />
+          <div className="profile__banner-scrim" />
+          <button onClick={onGoBack} className="profile__banner-back">‹</button>
         </div>
 
-        <div style={{ padding: '0 22px', marginTop: '-44px', position: 'relative' }}>
-          <div style={{ width: '86px', height: '86px', borderRadius: '50%', border: '3px solid #08070d', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden', background: avStr(320) }}>
-            {avatarSrc && <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+        <div className="profile__body">
+          <div className="profile__avatar" style={{ background: avStr(320) }}>
+            {avatarSrc && <img src={avatarSrc} alt="" />}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '14px' }}>
+          <div className="profile__identity-row">
             <div>
-              <div style={{ fontFamily: serif, fontSize: '30px', lineHeight: 1 }}>{profile.name || user?.displayName || 'Your Profile'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                <div style={{ fontSize: '13.5px', color: 'oklch(0.6 0.01 285)' }}>
+              <div className="profile__name">{profile.name || user?.displayName || 'Your Profile'}</div>
+              <div className="profile__handle-row">
+                <span className="profile__handle">
                   {profile.username
                     ? `@${profile.username}`
                     : '@' + (profile.name || user?.displayName || '').toLowerCase().replace(/\s+/g, '.')}
-                </div>
+                </span>
                 {profile.username && (
                   <button
+                    className="profile__copy-btn"
                     onClick={() => {
                       navigator.clipboard.writeText(`https://encore.drewford.dev/@${profile.username}`);
                       onFlash('Link copied!');
                     }}
-                    style={{ fontSize: '10.5px', color: 'oklch(0.55 0.01 285)', background: 'oklch(0.2 0.014 285/0.5)', border: '1px solid oklch(1 0 0/0.08)', borderRadius: '6px', padding: '2px 7px', cursor: 'pointer', letterSpacing: '0.3px' }}
                   >
                     Copy link
                   </button>
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={onGoEditProfile} className="edit-btn" style={{ padding: '9px 18px', borderRadius: '999px', border: '1px solid oklch(1 0 0/0.14)', background: 'oklch(0.2 0.014 285/0.7)', fontSize: '13px', fontWeight: 600, color: 'oklch(0.96 0.005 285)', cursor: 'pointer' }}>Edit</button>
-              <button onClick={onSignOut} style={{ padding: '9px 14px', borderRadius: '999px', border: '1px solid oklch(1 0 0/0.1)', background: 'none', fontSize: '13px', color: 'oklch(0.55 0.01 285)', cursor: 'pointer' }}>Out</button>
+            <div className="profile__actions">
+              <button onClick={onGoEditProfile} className="profile__edit-btn edit-btn">Edit</button>
+              <button onClick={onSignOut} className="profile__signout-btn">Out</button>
             </div>
           </div>
 
-          <div style={{ fontSize: '14px', color: 'oklch(0.78 0.01 285)', marginTop: '14px', lineHeight: 1.55 }}>{profile.bio || 'Front-row regular chasing stage light and bass that you feel in your chest.'}</div>
+          <div className="profile__bio">{profile.bio || 'Front-row regular chasing stage light and bass that you feel in your chest.'}</div>
 
           {(profile.location || profile.website) && (
-            <div style={{ display: 'flex', gap: '16px', marginTop: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {profile.location && <div style={{ fontSize: '13px', color: 'oklch(0.58 0.01 285)' }}>📍 {profile.location}</div>}
+            <div className="profile__meta-row">
+              {profile.location && <span className="profile__location">📍 {profile.location}</span>}
               {profile.website && (
-                <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'oklch(0.68 0.14 260)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <a href={profile.website} target="_blank" rel="noopener noreferrer" className="profile__link">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                   {profile.websiteLabel || profile.website}
                 </a>
@@ -80,52 +80,48 @@ export default function UserProfileContainer({
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '26px', marginTop: '18px' }}>
-            <div><span style={{ fontFamily: serif, fontSize: '24px' }}>{galleries.length}</span> <span style={{ fontSize: '13px', color: 'oklch(0.6 0.01 285)' }}>concerts</span></div>
-            <div><span style={{ fontFamily: serif, fontSize: '24px' }}>{totalPhotos}</span> <span style={{ fontSize: '13px', color: 'oklch(0.6 0.01 285)' }}>photos</span></div>
-            <div><span style={{ fontFamily: serif, fontSize: '24px' }}>{totalVideos}</span> <span style={{ fontSize: '13px', color: 'oklch(0.6 0.01 285)' }}>videos</span></div>
+          <div className="profile__stats">
+            <div><span className="profile__stat-value">{galleries.length}</span> <span className="profile__stat-label">concerts</span></div>
+            <div><span className="profile__stat-value">{totalPhotos}</span> <span className="profile__stat-label">photos</span></div>
+            <div><span className="profile__stat-value">{totalVideos}</span> <span className="profile__stat-label">videos</span></div>
           </div>
         </div>
 
-        {/* featured slideshow */}
-        <div style={{ padding: '28px 22px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: serif, fontSize: '22px', color: 'oklch(0.9 0.01 285)' }}>Featured</div>
-          <div style={{ fontSize: '12px', color: 'oklch(0.55 0.01 285)' }}>{favs.length ? (fi + 1) + ' / ' + favs.length : ''}</div>
+        <div className="profile__featured-header">
+          <span className="profile__featured-title">Featured</span>
+          <span className="profile__featured-counter">{favs.length ? (fi + 1) + ' / ' + favs.length : ''}</span>
         </div>
+
         {curFav && (
-          <div style={{ padding: '0 22px' }}>
-            <div style={{ position: 'relative', borderRadius: '18px', overflow: 'hidden', aspectRatio: '4/5', boxShadow: '0 14px 40px rgba(0,0,0,0.5)' }}>
-              <div key={fi} style={{ position: 'absolute', inset: 0, animationName: 'kenfade', animationDuration: '4.5s', animationTimingFunction: 'ease', animationFillMode: 'both', background: coverStr(curFav.g.h1, curFav.g.h2) }} />
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(6,5,12,0.9),transparent 55%)', pointerEvents: 'none' }} />
-              <div style={{ position: 'absolute', left: '18px', right: '60px', bottom: '18px', pointerEvents: 'none' }}>
-                <div style={{ fontSize: '11px', letterSpacing: '1.2px', textTransform: 'uppercase', color: 'oklch(0.72 0.12 5)' }}>My favorite</div>
-                <div style={{ fontFamily: serif, fontSize: '30px', lineHeight: 1.02, marginTop: '5px' }}>{curFav.g.artist}</div>
-                <div style={{ fontSize: '12.5px', color: 'oklch(0.8 0.01 285)', marginTop: '3px' }}>{curFav.g.venue + ' · ' + curFav.g.city}</div>
+          <div className="profile__featured-card-wrap">
+            <div className="profile__featured-card">
+              <div key={fi} className="profile__featured-cover" style={{ background: coverStr(curFav.g.h1, curFav.g.h2) }} />
+              <div className="profile__featured-scrim" />
+              <div className="profile__featured-info">
+                <div className="profile__featured-eyebrow">My favorite</div>
+                <div className="profile__featured-artist">{curFav.g.artist}</div>
+                <div className="profile__featured-venue">{curFav.g.venue + ' · ' + curFav.g.city}</div>
               </div>
-              <div style={{ position: 'absolute', right: '16px', bottom: '18px', display: 'flex', flexDirection: 'column', gap: '7px', alignItems: 'center' }}>
+              <div className="profile__featured-dots">
                 {favs.map((_, di) => (
-                  <div key={di} style={di === fi
-                    ? { width: '6px', height: '20px', borderRadius: '3px', background: 'linear-gradient(180deg, oklch(0.72 0.2 5), oklch(0.64 0.2 290))', transition: 'all .35s ease' }
-                    : { width: '6px', height: '6px', borderRadius: '3px', background: 'oklch(0.5 0.01 285)', transition: 'all .35s ease' }
-                  } />
+                  <div key={di} className={di === fi ? 'profile__featured-dot profile__featured-dot--active' : 'profile__featured-dot profile__featured-dot--inactive'} />
                 ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* concerts attended */}
-        <div style={{ padding: '28px 22px 8px', fontFamily: serif, fontSize: '22px', color: 'oklch(0.9 0.01 285)' }}>Concerts attended</div>
-        <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="profile__concerts-title">Concerts attended</div>
+        <div className="profile__concerts-list">
           {galleries.map(g => (
-            <div key={g.id} onClick={() => onGoBack(g.id)} className="concert-row" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px', borderRadius: '14px', background: 'oklch(0.17 0.013 285/0.5)', border: '1px solid oklch(1 0 0/0.06)', cursor: 'pointer', animation: 'fadeUp .45s ease both' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '10px', flex: 'none', background: coverStr(g.h1, g.h2) }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '15.5px', fontWeight: 600 }}>{g.artist}</div>
-                <div style={{ fontSize: '12.5px', color: 'oklch(0.62 0.01 285)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.venue + ' · ' + g.month + ' ' + g.year}</div>
-                <div style={{ fontSize: '11.5px', color: 'oklch(0.66 0.12 320)', marginTop: '4px', fontWeight: 500 }}>{g.ownCount > 0 ? g.ownCount + ' of your shots' : 'attended'}</div>
+            <div key={g.id} onClick={() => onGoBack(g.id)} className="concert-row">
+              <div className="concert-row__thumb" style={{ background: coverStr(g.h1, g.h2) }} />
+              <div className="concert-row__info">
+                <div className="concert-row__artist">{g.artist}</div>
+                <div className="concert-row__meta">{g.venue + ' · ' + g.month + ' ' + g.year}</div>
+                <div className="concert-row__shots">{g.ownCount > 0 ? g.ownCount + ' of your shots' : 'attended'}</div>
               </div>
-              <div style={{ fontSize: '20px', color: 'oklch(0.5 0.01 285)' }}>›</div>
+              <span className="concert-row__chevron">›</span>
             </div>
           ))}
         </div>
@@ -134,34 +130,32 @@ export default function UserProfileContainer({
   }
 
   if (screen === 'editProfile') {
-    const uBorder = usernameStatus === 'taken' || usernameStatus === 'invalid'
-      ? '1px solid oklch(0.52 0.18 25/0.7)'
+    const inputMod = (usernameStatus === 'taken' || usernameStatus === 'invalid')
+      ? 'username-field__input--error'
       : usernameStatus === 'available'
-      ? '1px solid oklch(0.56 0.16 145/0.6)'
-      : '1px solid oklch(1 0 0/0.09)';
+      ? 'username-field__input--ok'
+      : 'username-field__input--idle';
 
     return (
-      <div style={{ position: 'relative', zIndex: 1, animation: 'fadeUp .4s ease both', padding: '22px 20px 40px' }}>
+      <div className="edit-profile">
 
-        {/* header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-          <button onClick={() => onSetScreen('profile')} style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'oklch(0.2 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.1)', fontSize: '18px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>‹</button>
-          <div style={{ fontSize: '15px', fontWeight: 600, color: 'oklch(0.88 0.01 285)' }}>Edit profile</div>
-          <div style={{ width: '36px' }} />
+        <div className="edit-profile__header">
+          <button onClick={() => onSetScreen('profile')} className="btn-back">‹</button>
+          <span className="edit-profile__title">Edit profile</span>
+          <div className="edit-profile__header-spacer" />
         </div>
 
-        {/* avatar picker */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
-          <div style={{ position: 'relative' }}>
-            <div style={{ width: '96px', height: '96px', borderRadius: '50%', border: '3px solid oklch(1 0 0/0.12)', overflow: 'hidden', background: avStr(320) }}>
-              {avatarSrc && !avatarUploading && <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+        <div className="edit-profile__avatar-wrap">
+          <div className="edit-profile__avatar-relative">
+            <div className="edit-profile__avatar-circle" style={{ background: avStr(320) }}>
+              {avatarSrc && !avatarUploading && <img src={avatarSrc} alt="" />}
               {avatarUploading && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(8,7,13,0.6)' }}>
-                  <div style={{ width: '22px', height: '22px', border: '2px solid oklch(1 0 0/0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                <div className="edit-profile__avatar-overlay">
+                  <div className="spinner" style={{ width: '22px', height: '22px', border: '2px solid oklch(1 0 0/0.3)', borderTopColor: '#fff' }} />
                 </div>
               )}
             </div>
-            <label style={{ position: 'absolute', bottom: '2px', right: '2px', width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+            <label className="edit-profile__camera-btn">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
@@ -171,29 +165,21 @@ export default function UserProfileContainer({
           </div>
         </div>
 
-        {/* fields */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <div className="edit-profile__fields">
           {[
             { label: 'NAME',     key: 'name',     type: 'text', placeholder: 'Your display name' },
             { label: 'LOCATION', key: 'location', type: 'text', placeholder: 'e.g. Austin, TX' },
           ].map(({ label, key, type, placeholder }) => (
             <div key={key}>
-              <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>{label}</label>
-              <input
-                type={type}
-                value={profile[key]}
-                onChange={onSetProfileField(key)}
-                placeholder={placeholder}
-                style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
-              />
+              <label className="field-label">{label}</label>
+              <input type={type} value={profile[key]} onChange={onSetProfileField(key)} placeholder={placeholder} className="field-input" />
             </div>
           ))}
 
-          {/* username @handle */}
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>USERNAME</label>
-            <div style={{ position: 'relative', marginTop: '7px' }}>
-              <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '15px', color: 'oklch(0.52 0.01 285)', pointerEvents: 'none', userSelect: 'none' }}>@</div>
+            <label className="field-label">USERNAME</label>
+            <div className="username-field">
+              <span className="username-field__at">@</span>
               <input
                 type="text"
                 value={profile.username}
@@ -202,60 +188,34 @@ export default function UserProfileContainer({
                 maxLength={20}
                 autoComplete="off"
                 autoCapitalize="none"
-                style={{ width: '100%', padding: '14px 40px 14px 28px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: uBorder, fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
+                className={`username-field__input ${inputMod}`}
               />
-              <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
-                {usernameStatus === 'checking' && (
-                  <div style={{ width: '15px', height: '15px', border: '2px solid oklch(1 0 0/0.15)', borderTopColor: 'oklch(0.6 0.01 285)', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-                )}
-                {usernameStatus === 'available' && <span style={{ fontSize: '14px', color: 'oklch(0.72 0.16 145)' }}>✓</span>}
-                {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <span style={{ fontSize: '14px', color: 'oklch(0.65 0.18 25)' }}>✗</span>}
+              <div className="username-field__status">
+                {usernameStatus === 'checking'  && <div className="spinner username-field__spinner" />}
+                {usernameStatus === 'available' && <span className="username-field__check">✓</span>}
+                {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <span className="username-field__cross">✗</span>}
               </div>
             </div>
-            {usernameStatus === 'taken' && <div style={{ fontSize: '11.5px', color: 'oklch(0.65 0.18 25)', marginTop: '5px' }}>That username is already taken</div>}
-            {usernameStatus === 'available' && profile.username !== storedUsername && <div style={{ fontSize: '11.5px', color: 'oklch(0.68 0.15 145)', marginTop: '5px' }}>Available</div>}
-            {(usernameStatus === 'invalid' || usernameStatus === 'short') && <div style={{ fontSize: '11.5px', color: 'oklch(0.65 0.18 25)', marginTop: '5px' }}>3–20 chars · letters, numbers, _ or . · start and end with a letter or number</div>}
-            {!profile.username && usernameStatus === 'idle' && <div style={{ fontSize: '11.5px', color: 'oklch(0.45 0.01 285)', marginTop: '5px' }}>Sets your profile URL: encore.app/@yourhandle</div>}
-          </div>
-
-          {/* website URL + label */}
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>LINK</label>
-            <input
-              type="url"
-              value={profile.website}
-              onChange={onSetProfileField('website')}
-              placeholder="https://yoursite.com"
-              style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px 12px 0 0', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', borderBottom: '1px solid oklch(1 0 0/0.04)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
-            />
-            <input
-              type="text"
-              value={profile.websiteLabel}
-              onChange={onSetProfileField('websiteLabel')}
-              placeholder="Label (e.g. Instagram, Portfolio)"
-              style={{ width: '100%', padding: '12px 16px', borderRadius: '0 0 12px 12px', background: 'oklch(0.15 0.012 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', borderTop: 'none', fontSize: '13.5px', color: 'oklch(0.88 0.005 285)', boxSizing: 'border-box', outline: 'none', display: 'block' }}
-            />
+            {usernameStatus === 'taken' && <div className="username-hint username-hint--error">That username is already taken</div>}
+            {usernameStatus === 'available' && profile.username !== storedUsername && <div className="username-hint username-hint--ok">Available</div>}
+            {(usernameStatus === 'invalid' || usernameStatus === 'short') && <div className="username-hint username-hint--error">3–20 chars · letters, numbers, _ or . · start and end with a letter or number</div>}
+            {!profile.username && usernameStatus === 'idle' && <div className="username-hint username-hint--quiet">Sets your profile URL: encore.app/@yourhandle</div>}
           </div>
 
           <div>
-            <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>BIO</label>
-            <textarea
-              value={profile.bio}
-              onChange={onSetProfileField('bio')}
-              placeholder="Tell the crowd who you are…"
-              rows={4}
-              style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block', resize: 'none', lineHeight: 1.55 }}
-            />
+            <label className="field-label">LINK</label>
+            <input type="url" value={profile.website} onChange={onSetProfileField('website')} placeholder="https://yoursite.com" className="link-pair__url" />
+            <input type="text" value={profile.websiteLabel} onChange={onSetProfileField('websiteLabel')} placeholder="Label (e.g. Instagram, Portfolio)" className="link-pair__label" />
+          </div>
+
+          <div>
+            <label className="field-label">BIO</label>
+            <textarea value={profile.bio} onChange={onSetProfileField('bio')} placeholder="Tell the crowd who you are…" rows={4} className="bio-textarea" />
           </div>
         </div>
 
-        {/* save */}
-        <button
-          onClick={onSaveProfile}
-          disabled={editLoading}
-          style={{ width: '100%', marginTop: '28px', padding: '16px', borderRadius: '14px', background: editLoading ? 'oklch(0.4 0.08 285)' : 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', color: '#fff', fontSize: '15.5px', fontWeight: 700, boxShadow: editLoading ? 'none' : '0 10px 30px oklch(0.64 0.2 320/0.35)', border: 'none', cursor: editLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-        >
-          {editLoading && <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />}
+        <button onClick={onSaveProfile} disabled={editLoading} className="btn-accent" style={{ marginTop: '28px' }}>
+          {editLoading && <div className="spinner" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff' }} />}
           {editLoading ? 'Saving…' : 'Save profile'}
         </button>
       </div>

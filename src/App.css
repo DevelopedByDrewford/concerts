@@ -4,6 +4,7 @@
 
 .feed-card { transition: transform .25s ease }
 .feed-card:hover { transform: translateY(-3px) }
+.feed-cover { position: absolute; inset: 0; }
 .feed-card .feed-cover { transition: transform .8s ease }
 .feed-card:hover .feed-cover { transform: scale(1.06) }
 

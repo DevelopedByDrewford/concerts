@@ -1,27 +1,24 @@
 import React from 'react';
+import './LoginModal.css';
 
 export default function LoginModal({ loading, onSignIn, onClose }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(5,4,9,0.78)', backdropFilter: 'blur(18px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', maxWidth: '480px', margin: '0 auto', animation: 'fadeIn .25s ease both' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '32px 24px 44px', borderRadius: '28px 28px 0 0', background: 'linear-gradient(180deg, oklch(0.16 0.018 285), oklch(0.12 0.014 285))', border: '1px solid oklch(1 0 0/0.1)', borderBottom: 'none', boxShadow: '0 -24px 60px rgba(0,0,0,0.6)', animation: 'fadeUp .3s ease both' }}>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
 
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
-          <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'oklch(1 0 0/0.15)' }} />
+        <div className="modal-drag-handle">
+          <div className="modal-drag-handle__bar" />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: '34px', letterSpacing: '0.5px', lineHeight: 1 }}>Encore</div>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', animation: 'pulse 2.4s ease-in-out infinite' }} />
+        <div className="modal-wordmark">
+          <span className="modal-wordmark__title">Encore</span>
+          <div className="modal-wordmark__dot" />
         </div>
-        <div style={{ fontSize: '15px', color: 'oklch(0.68 0.01 285)', lineHeight: 1.5, marginBottom: '32px' }}>Save your shots, see who else was there, and revisit every show.</div>
+        <div className="modal-tagline">Save your shots, see who else was there, and revisit every show.</div>
 
-        <button
-          onClick={onSignIn}
-          disabled={loading}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '15px 20px', borderRadius: '14px', background: loading ? 'oklch(0.88 0 0)' : '#fff', border: 'none', cursor: loading ? 'default' : 'pointer', fontSize: '15px', fontWeight: 600, color: '#1f1f1f', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', transition: 'opacity .15s ease', opacity: loading ? 0.7 : 1 }}
-        >
+        <button onClick={onSignIn} disabled={loading} className="modal-google-btn">
           {loading ? (
-            <div style={{ width: '20px', height: '20px', border: '2px solid #ccc', borderTopColor: '#555', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+            <div className="spinner modal-google-btn__spinner" />
           ) : (
             <svg width="20" height="20" viewBox="0 0 48 48">
               <path fill="#4285F4" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
@@ -33,7 +30,7 @@ export default function LoginModal({ loading, onSignIn, onClose }) {
           {loading ? 'Signing in…' : 'Continue with Google'}
         </button>
 
-        <div style={{ textAlign: 'center', fontSize: '12px', color: 'oklch(0.48 0.01 285)', marginTop: '16px', lineHeight: 1.5 }}>By continuing you agree to our terms. We only use your account to identify you.</div>
+        <div className="modal-legal">By continuing you agree to our terms. We only use your account to identify you.</div>
       </div>
     </div>
   );

@@ -204,6 +204,7 @@
 .profile__featured-cover {
   position: absolute;
   inset: 0;
+  animation: kenfade 4.5s ease both;
 }
 
 .profile__featured-scrim {

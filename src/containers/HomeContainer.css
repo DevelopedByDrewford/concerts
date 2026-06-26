@@ -293,3 +293,23 @@
   color: oklch(0.72 0.01 285);
   font-weight: 500;
 }
+
+.home__gallery-fan-avatars { display: flex; }
+
+.home__gallery-fan-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #0a0810;
+}
+.home__gallery-fan-avatar:not(:first-child) { margin-left: -8px; }
+
+.feed-card__fan-avatars { display: flex; }
+
+.feed-card__fan-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #0a0810;
+}
+.feed-card__fan-avatar:not(:first-child) { margin-left: -7px; }
