@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="20" fill="#160d18"/>
+  <text x="33" y="71" font-family="DejaVu Serif" font-weight="bold" font-size="60" fill="#9670c2" text-anchor="middle">E</text>
+  <circle cx="76" cy="26" r="6.5" fill="#6b4894"/>
+</svg>

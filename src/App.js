@@ -3,8 +3,8 @@ import './App.css';
 import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
-import HomeContainer       from './containers/HomeContainer';
-import ConcertContainer    from './containers/ConcertContainer';
+import HomeContainer        from './containers/HomeContainer';
+import ConcertContainer     from './containers/ConcertContainer';
 import UserProfileContainer from './containers/UserProfileContainer';
 import Lightbox   from './components/Lightbox';
 import LoginModal from './components/LoginModal';
@@ -13,22 +13,22 @@ import NavBar     from './components/NavBar';
 
 class App extends React.Component {
   state = {
-    screen:       'home',
-    activeId:     null,
-    lb:           null,
-    slide:        0,
-    deleted:      {},
-    extra:        {},
-    toast:        '',
-    galleries:    INITIAL_GALLERIES,
-    create:       { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
-    user:         null,
-    loginModal:   false,
-    loginLoading: false,
-    profile:      { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null },
-    editLoading:  false,
+    screen:          'home',
+    activeId:        null,
+    lb:              null,
+    slide:           0,
+    deleted:         {},
+    extra:           {},
+    toast:           '',
+    galleries:       INITIAL_GALLERIES,
+    create:          { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
+    user:            null,
+    loginModal:      false,
+    loginLoading:    false,
+    profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null },
+    editLoading:     false,
     avatarUploading: false,
-    usernameStatus: 'idle',
+    usernameStatus:  'idle',
   };
 
   _storedUsername = '';
@@ -78,7 +78,6 @@ class App extends React.Component {
   };
 
   // ── navigation ───────────────────────────────────────────────────────────────
-
   goHome    = () => this.setState({ screen: 'home',    lb: null });
   goCreate  = () => this.setState({ screen: 'create',  lb: null });
   goBack    = () => this.setState({ screen: 'home',    lb: null });
@@ -90,7 +89,6 @@ class App extends React.Component {
   setScreen     = (s) => this.setState({ screen: s });
 
   // ── auth ─────────────────────────────────────────────────────────────────────
-
   openLoginModal  = () => this.setState({ loginModal: true });
   closeLoginModal = () => this.setState({ loginModal: false, loginLoading: false });
 
@@ -111,10 +109,8 @@ class App extends React.Component {
   };
 
   // ── profile ──────────────────────────────────────────────────────────────────
-
   setProfileField = (k) => (e) => {
-    const v = e.target.value;
-    this.setState(s => ({ profile: { ...s.profile, [k]: v } }));
+    this.setState(s => ({ profile: { ...s.profile, [k]: e.target.value } }));
   };
 
   handleUsernameChange = (e) => {
@@ -124,16 +120,13 @@ class App extends React.Component {
     if (this._usernameTimer) clearTimeout(this._usernameTimer);
     if (!val) return;
 
-    if (val === this._storedUsername) {
-      this.setState({ usernameStatus: 'available' });
-      return;
-    }
+    if (val === this._storedUsername) { this.setState({ usernameStatus: 'available' }); return; }
 
     const validFormat = /^[a-z0-9][a-z0-9._]{1,18}[a-z0-9]$|^[a-z0-9]{3}$/.test(val)
       && !/\.{2}|_{2}/.test(val);
 
-    if (val.length < 3)   { this.setState({ usernameStatus: 'short' });   return; }
-    if (!validFormat)      { this.setState({ usernameStatus: 'invalid' }); return; }
+    if (val.length < 3)  { this.setState({ usernameStatus: 'short' });   return; }
+    if (!validFormat)     { this.setState({ usernameStatus: 'invalid' }); return; }
 
     this.setState({ usernameStatus: 'checking' });
     this._usernameTimer = setTimeout(async () => {
@@ -191,7 +184,6 @@ class App extends React.Component {
   };
 
   // ── gallery / media ──────────────────────────────────────────────────────────
-
   openGallery = (id) => {
     this.setState({ screen: 'gallery', activeId: id, lb: null });
     window.scrollTo(0, 0);
@@ -236,8 +228,7 @@ class App extends React.Component {
   };
 
   // ── create form ──────────────────────────────────────────────────────────────
-
-  setF = (k) => (e) => this.setState(s => ({ create: { ...s.create, [k]: e.target.value } }));
+  setF      = (k) => (e) => this.setState(s => ({ create: { ...s.create, [k]: e.target.value } }));
   setArtist = this.setF('artist');
   setVenue  = this.setF('venue');
   setCity   = this.setF('city');
@@ -275,28 +266,23 @@ class App extends React.Component {
   };
 
   // ── render ───────────────────────────────────────────────────────────────────
-
   render() {
     const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus } = this.state;
 
-    const isHome       = screen === 'home';
-    const isConcert    = screen === 'gallery' || screen === 'create';
-    const isUserProfile = screen === 'profile' || screen === 'editProfile';
+    const isHome        = screen === 'home';
+    const isConcert     = screen === 'gallery' || screen === 'create';
+    const isUserProfile = screen === 'profile'  || screen === 'editProfile';
 
     const ag = galleries.find(g => g.id === activeId);
     const curMedia = ag
       ? (extra[ag.id] || []).concat(ag.media.filter(m => !deleted[m.id]))
       : [];
 
-    const lbMedia = lb != null ? curMedia[lb] : null;
-
     return (
-      <div style={{ position: 'relative', minHeight: '100vh', maxWidth: '480px', margin: '0 auto', background: 'linear-gradient(180deg,#0c0a14,#08070d)', color: 'oklch(0.96 0.005 285)', overflowX: 'hidden', paddingBottom: '96px', boxShadow: '0 0 120px rgba(0,0,0,0.6)' }}>
-
-        {/* ambient orbs */}
-        <div style={{ position: 'fixed', top: '-12%', left: '-18%', width: '60%', height: '42%', borderRadius: '50%', background: 'radial-gradient(circle,oklch(0.6 0.2 5/0.42),transparent 68%)', filter: 'blur(48px)', animation: 'float1 16s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-        <div style={{ position: 'fixed', bottom: '-8%', right: '-18%', width: '62%', height: '44%', borderRadius: '50%', background: 'radial-gradient(circle,oklch(0.58 0.2 290/0.4),transparent 68%)', filter: 'blur(52px)', animation: 'float2 19s ease-in-out infinite', pointerEvents: 'none', zIndex: 0 }} />
-        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 50, opacity: 0.05, mixBlendMode: 'overlay', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
+      <div className="app-shell">
+        <div className="app-orb-1" />
+        <div className="app-orb-2" />
+        <div className="app-grain" />
 
         {isHome && (
           <HomeContainer
@@ -350,9 +336,9 @@ class App extends React.Component {
           />
         )}
 
-        {lbMedia && (
+        {lb != null && curMedia[lb] && (
           <Lightbox
-            media={lbMedia}
+            media={curMedia[lb]}
             gallery={ag}
             onClose={this.closeLb}
             onPrev={this.prevLb}

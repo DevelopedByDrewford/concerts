@@ -1,0 +1,120 @@
+.nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  z-index: 70;
+  padding: 0 22px 22px;
+}
+
+.nav-bar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-radius: var(--r-card);
+  background: rgba(14, 11, 20, 0.82);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--c-border-faint);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--c-text-dimmest);
+}
+
+.nav-btn--active {
+  color: oklch(0.97 0.005 285);
+}
+
+.nav-btn__icon {
+  width: 20px;
+  height: 18px;
+  position: relative;
+}
+
+.nav-btn__icon--home-base {
+  position: absolute;
+  bottom: 0;
+  width: 18px;
+  height: 11px;
+  border: 2px solid currentColor;
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+}
+
+.nav-btn__icon--home-roof {
+  position: absolute;
+  top: 0;
+  left: 1px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 8px solid currentColor;
+}
+
+.nav-btn__icon--user {
+  width: 18px;
+  height: 18px;
+  position: relative;
+}
+
+.nav-btn__icon--user-head {
+  position: absolute;
+  top: 0;
+  left: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+
+.nav-btn__icon--user-body {
+  position: absolute;
+  bottom: 0;
+  width: 18px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+}
+
+.nav-btn__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.nav-plus {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--grad-accent);
+  box-shadow: var(--shadow-btn);
+  margin-top: -24px;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-plus__icon {
+  font-size: 28px;
+  font-weight: 300;
+  color: #fff;
+  line-height: 0.6;
+}

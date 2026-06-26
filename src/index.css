@@ -6,6 +6,48 @@ button{cursor:pointer;border:none;background:none}
 select{appearance:none;-webkit-appearance:none}
 ::-webkit-scrollbar{width:0;height:0;display:none}
 
+:root {
+  --serif: 'Instrument Serif', serif;
+
+  /* surfaces */
+  --c-bg:          #08070d;
+  --c-surface:     oklch(0.18 0.014 285 / 0.7);
+  --c-surface-dim: oklch(0.15 0.012 285 / 0.7);
+  --c-overlay:     oklch(0.2  0.014 285 / 0.7);
+
+  /* borders */
+  --c-border:       oklch(1 0 0 / 0.09);
+  --c-border-faint: oklch(1 0 0 / 0.07);
+  --c-border-sub:   oklch(1 0 0 / 0.06);
+
+  /* text */
+  --c-text:         oklch(0.96 0.005 285);
+  --c-text-sub:     oklch(0.78 0.01  285);
+  --c-text-muted:   oklch(0.7  0.01  285);
+  --c-text-dim:     oklch(0.6  0.01  285);
+  --c-text-dimmer:  oklch(0.55 0.01  285);
+  --c-text-dimmest: oklch(0.5  0.01  285);
+
+  /* accent */
+  --grad-accent:    linear-gradient(120deg, oklch(0.7 0.2 5), oklch(0.64 0.2 290));
+  --shadow-accent:  0 10px 30px oklch(0.64 0.2 320 / 0.35);
+  --shadow-btn:     0 8px 24px oklch(0.64 0.2 320 / 0.32);
+
+  /* semantic */
+  --c-link:    oklch(0.68 0.14  260);
+  --c-success: oklch(0.68 0.15  145);
+  --c-error:   oklch(0.65 0.18  25);
+
+  /* radius */
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   14px;
+  --r-xl:   18px;
+  --r-2xl:  20px;
+  --r-card: 22px;
+  --r-full: 999px;
+}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes spin{to{transform:rotate(360deg)}}

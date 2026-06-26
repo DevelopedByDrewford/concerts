@@ -1,0 +1,105 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5, 4, 9, 0.78);
+  backdrop-filter: blur(18px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: 480px;
+  margin: 0 auto;
+  animation: fadeIn .25s ease both;
+}
+
+.modal-sheet {
+  width: 100%;
+  padding: 32px 24px 44px;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, oklch(0.16 0.018 285), oklch(0.12 0.014 285));
+  border: 1px solid var(--c-border);
+  border-bottom: none;
+  box-shadow: var(--shadow-modal, 0 -24px 60px rgba(0,0,0,0.6));
+  animation: fadeUp .3s ease both;
+}
+
+.modal-drag-handle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.modal-drag-handle__bar {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: oklch(1 0 0 / 0.15);
+}
+
+.modal-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.modal-wordmark__title {
+  font-family: var(--serif);
+  font-size: 34px;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.modal-wordmark__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--grad-accent);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+.modal-tagline {
+  font-size: 15px;
+  color: var(--c-text-muted);
+  line-height: 1.5;
+  margin-bottom: 32px;
+}
+
+.modal-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 15px 20px;
+  border-radius: var(--r-lg);
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f1f1f;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  transition: opacity .15s ease;
+}
+
+.modal-google-btn:disabled {
+  background: oklch(0.88 0 0);
+  opacity: 0.7;
+  cursor: default;
+}
+
+.modal-google-btn__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ccc;
+  border-top-color: #555;
+}
+
+.modal-legal {
+  text-align: center;
+  font-size: 12px;
+  color: oklch(0.48 0.01 285);
+  margin-top: 16px;
+  line-height: 1.5;
+}
