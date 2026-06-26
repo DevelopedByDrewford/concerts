@@ -4,7 +4,7 @@ import { coverStr, avStr } from '../utils/colorHelpers';
 
 export default function UserProfileContainer({
   screen,
-  user, profile, galleries, slide,
+  user, profile, galleries, isOwn = true, slide,
   usernameStatus, storedUsername,
   editLoading, avatarUploading,
   onGoBack, onGoEditProfile, onSetScreen, onSignOut,
@@ -60,10 +60,12 @@ export default function UserProfileContainer({
                 )}
               </div>
             </div>
-            <div className="profile__actions">
-              <button onClick={onGoEditProfile} className="profile__edit-btn edit-btn">Edit</button>
-              <button onClick={onSignOut} className="profile__signout-btn">Out</button>
-            </div>
+            {isOwn && (
+              <div className="profile__actions">
+                <button onClick={onGoEditProfile} className="profile__edit-btn edit-btn">Edit</button>
+                <button onClick={onSignOut} className="profile__signout-btn">Out</button>
+              </div>
+            )}
           </div>
 
           <div className="profile__bio">{profile.bio || 'Front-row regular chasing stage light and bass that you feel in your chest.'}</div>

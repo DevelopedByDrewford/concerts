@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
@@ -29,6 +29,8 @@ class App extends React.Component {
     editLoading:     false,
     avatarUploading: false,
     usernameStatus:  'idle',
+    publicUid:       null,
+    publicProfile:   null,
   };
 
   _storedUsername = '';
@@ -38,6 +40,9 @@ class App extends React.Component {
     this._iv = setInterval(() => {
       if (this.state.screen === 'profile') this.setState(s => ({ slide: s.slide + 1 }));
     }, 4500);
+
+    window.addEventListener('popstate', this._handlePopState);
+    this._loadFromUrl(window.location.pathname);
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
@@ -69,6 +74,7 @@ class App extends React.Component {
     clearInterval(this._iv);
     if (this._tt) clearTimeout(this._tt);
     if (this._unsubAuth) this._unsubAuth();
+    window.removeEventListener('popstate', this._handlePopState);
   }
 
   flash = (msg) => {
@@ -77,13 +83,66 @@ class App extends React.Component {
     this._tt = setTimeout(() => this.setState({ toast: '' }), 1900);
   };
 
+  // ── URL routing ──────────────────────────────────────────────────────────────
+  _pushUrl = (path) => window.history.pushState(null, '', path);
+
+  _handlePopState = () => this._loadFromUrl(window.location.pathname);
+
+  _loadFromUrl(path) {
+    const match = path.match(/^\/@([a-z0-9._]{3,20})$/i);
+    if (match) {
+      this._openUsernameProfile(match[1].toLowerCase());
+    } else {
+      // Any other path → home
+      if (path !== '/') window.history.replaceState(null, '', '/');
+      this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+    }
+  }
+
+  _openUsernameProfile = async (username) => {
+    try {
+      const data = await getUserByUsername(username);
+      if (!data) { window.history.replaceState(null, '', '/'); this.flash('Profile not found'); return; }
+      if (data.redirectTo) {
+        // Old username — follow the redirect
+        window.history.replaceState(null, '', `/@${data.redirectTo}`);
+        return this._openUsernameProfile(data.redirectTo);
+      }
+      this.setState({
+        screen:        'profile',
+        lb:            null,
+        slide:         0,
+        publicUid:     data.uid,
+        publicProfile: {
+          name:         data.name         || '',
+          username:     data.username     || username,
+          bio:          data.bio          || '',
+          location:     data.location     || '',
+          website:      data.website      || '',
+          websiteLabel: data.websiteLabel || '',
+          avatarUrl:    data.profilePhotoUrl || null,
+        },
+      });
+    } catch {
+      window.history.replaceState(null, '', '/');
+    }
+  };
+
   // ── navigation ───────────────────────────────────────────────────────────────
-  goHome    = () => this.setState({ screen: 'home',    lb: null });
-  goCreate  = () => this.setState({ screen: 'create',  lb: null });
-  goBack    = () => this.setState({ screen: 'home',    lb: null });
+  goHome = () => {
+    this._pushUrl('/');
+    this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+  };
+  goCreate  = () => this.setState({ screen: 'create', lb: null });
+  goBack    = () => {
+    this._pushUrl('/');
+    this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+  };
   goProfile = () => {
     if (!this.state.user) { this.setState({ loginModal: true }); return; }
-    this.setState({ screen: 'profile', lb: null, slide: 0 });
+    const username = this.state.profile.username || this._storedUsername;
+    this._pushUrl(username ? `/@${username}` : '/');
+    this.setState({ screen: 'profile', lb: null, slide: 0, publicUid: null, publicProfile: null });
   };
   goEditProfile = () => this.setState({ screen: 'editProfile', lb: null });
   setScreen     = (s) => this.setState({ screen: s });
@@ -174,7 +233,9 @@ class App extends React.Component {
         websiteLabel:    profile.websiteLabel,
         profilePhotoUrl: profile.avatarUrl || null,
       });
-      this.setState({ editLoading: false, screen: 'profile', slide: 0, usernameStatus: 'idle' });
+      const finalUsername = profile.username || this._storedUsername;
+      this._pushUrl(finalUsername ? `/@${finalUsername}` : '/');
+      this.setState({ editLoading: false, screen: 'profile', slide: 0, usernameStatus: 'idle', publicUid: null, publicProfile: null });
       this.flash('Profile saved');
     } catch (err) {
       this.setState({ editLoading: false });
@@ -267,11 +328,14 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
     const isUserProfile = screen === 'profile'  || screen === 'editProfile';
+
+    const isOwnProfile   = !publicUid || publicUid === user?.uid;
+    const displayProfile = (!isOwnProfile && publicProfile) ? publicProfile : profile;
 
     const ag = galleries.find(g => g.id === activeId);
     const curMedia = ag
@@ -317,8 +381,9 @@ class App extends React.Component {
           <UserProfileContainer
             screen={screen}
             user={user}
-            profile={profile}
-            galleries={galleries}
+            profile={displayProfile}
+            galleries={isOwnProfile ? galleries : []}
+            isOwn={isOwnProfile}
             slide={slide}
             usernameStatus={usernameStatus}
             storedUsername={this._storedUsername}

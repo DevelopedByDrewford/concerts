@@ -58,3 +58,22 @@ export async function callChangeUsername(username) {
   const result = await fn({ username });
   return result.data;
 }
+
+/**
+ * Looks up a user by username. Checks usernameHistory for old handles that
+ * were changed, returning { uid, redirectTo } when a redirect applies.
+ */
+export async function getUserByUsername(username) {
+  const claimSnap = await getDoc(doc(db, "usernames", username));
+  if (claimSnap.exists()) {
+    const { uid } = claimSnap.data();
+    const userSnap = await getDoc(doc(db, "users", uid));
+    return userSnap.exists() ? { uid, ...userSnap.data() } : null;
+  }
+  // Check history for renamed usernames
+  const histSnap = await getDoc(doc(db, "usernameHistory", username));
+  if (histSnap.exists()) {
+    return { redirectTo: histSnap.data().replacedBy };
+  }
+  return null;
+}
