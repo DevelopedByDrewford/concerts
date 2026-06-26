@@ -8,5 +8,6 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
-export { processUpload } from "./uploads/processUpload.js";
-export { deleteItem }    from "./uploads/deleteItem.js";
+export { processUpload }   from "./uploads/processUpload.js";
+export { deleteItem }      from "./uploads/deleteItem.js";
+export { changeUsername }  from "./uploads/changeUsername.js";

@@ -1,5 +1,7 @@
 import React from 'react';
 import './App.css';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,17 +92,54 @@ class App extends React.Component {
     toast: '',
     galleries: INITIAL_GALLERIES,
     create: { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
+    user: null,
+    loginModal: false,
+    loginLoading: false,
+    profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null },
+    editLoading: false,
+    avatarUploading: false,
+    usernameStatus: 'idle', // 'idle'|'checking'|'available'|'taken'|'invalid'
   };
+
+  _storedUsername = ''; // tracks the last-saved @handle to detect changes
+  _usernameTimer  = null;
 
   componentDidMount() {
     this._iv = setInterval(() => {
       if (this.state.screen === 'profile') this.setState(s => ({ slide: s.slide + 1 }));
     }, 4500);
+    this._unsubAuth = onAuthStateChanged(auth, async user => {
+      if (user) {
+        const stored = await loadUserProfile(user.uid);
+        // Legacy: old profiles stored display name in "username" field.
+        // Detect by presence of spaces or uppercase (handles aren't allowed to have them).
+        const rawStored = stored?.username || '';
+        const isLegacyDisplayName = /\s/.test(rawStored) || rawStored !== rawStored.toLowerCase();
+        const handle = isLegacyDisplayName ? '' : rawStored;
+        this._storedUsername = handle;
+        this.setState({
+          user,
+          profile: {
+            name:         stored?.name         || (isLegacyDisplayName ? rawStored : '') || user.displayName || '',
+            username:     handle,
+            bio:          stored?.bio           || '',
+            location:     stored?.location      || '',
+            website:      stored?.website       || '',
+            websiteLabel: stored?.websiteLabel  || '',
+            avatarUrl:    stored?.profilePhotoUrl || null,
+          },
+        });
+      } else {
+        this._storedUsername = '';
+        this.setState({ user: null, profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
+      }
+    });
   }
 
   componentWillUnmount() {
     clearInterval(this._iv);
     if (this._tt) clearTimeout(this._tt);
+    if (this._unsubAuth) this._unsubAuth();
   }
 
   flash(msg) {
@@ -111,8 +150,131 @@ class App extends React.Component {
 
   goHome    = () => this.setState({ screen: 'home',    lb: null });
   goCreate  = () => this.setState({ screen: 'create',  lb: null });
-  goProfile = () => this.setState({ screen: 'profile', lb: null, slide: 0 });
+  goProfile = () => {
+    if (!this.state.user) { this.setState({ loginModal: true }); return; }
+    this.setState({ screen: 'profile', lb: null, slide: 0 });
+  };
   goBack    = () => this.setState({ screen: 'home',    lb: null });
+
+  openLoginModal  = () => this.setState({ loginModal: true });
+  closeLoginModal = () => this.setState({ loginModal: false, loginLoading: false });
+
+  goEditProfile = () => this.setState({ screen: 'editProfile', lb: null });
+
+  setProfileField = (k) => (e) => {
+    const v = e.target.value;
+    this.setState(s => ({ profile: { ...s.profile, [k]: v } }));
+  };
+
+  handleUsernameChange = (e) => {
+    // Auto-sanitize to allowed chars (lowercase, alphanum, dot, underscore)
+    const val = e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '');
+    this.setState(s => ({ profile: { ...s.profile, username: val }, usernameStatus: 'idle' }));
+
+    if (this._usernameTimer) clearTimeout(this._usernameTimer);
+    if (!val) return;
+
+    // Same as stored — no check needed
+    if (val === this._storedUsername) {
+      this.setState({ usernameStatus: 'available' });
+      return;
+    }
+
+    const validFormat = /^[a-z0-9][a-z0-9._]{1,18}[a-z0-9]$|^[a-z0-9]{3}$/.test(val)
+      && !/\.{2}|_{2}/.test(val);
+
+    if (val.length < 3) {
+      this.setState({ usernameStatus: 'short' });
+      return;
+    }
+    if (!validFormat) {
+      this.setState({ usernameStatus: 'invalid' });
+      return;
+    }
+
+    this.setState({ usernameStatus: 'checking' });
+    this._usernameTimer = setTimeout(async () => {
+      try {
+        const available = await checkUsernameAvailable(val, this.state.user?.uid);
+        this.setState({ usernameStatus: available ? 'available' : 'taken' });
+      } catch {
+        this.setState({ usernameStatus: 'idle' });
+      }
+    }, 420);
+  };
+
+  handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !this.state.user) return;
+    this.setState({ avatarUploading: true });
+    try {
+      const url = await uploadAvatar(this.state.user.uid, file);
+      this.setState(s => ({ profile: { ...s.profile, avatarUrl: url }, avatarUploading: false }));
+    } catch {
+      this.setState({ avatarUploading: false });
+      this.flash('Avatar upload failed');
+    }
+  };
+
+  saveProfile = async () => {
+    const { user, profile, usernameStatus } = this.state;
+    if (!user) return;
+
+    // Block save if the username field has a pending check or is invalid
+    if (usernameStatus === 'checking') {
+      this.flash('Still checking username — wait a moment');
+      return;
+    }
+    if (usernameStatus === 'taken') {
+      this.flash('Username is already taken');
+      return;
+    }
+    if (usernameStatus === 'invalid' || usernameStatus === 'short') {
+      this.flash('Username format is invalid');
+      return;
+    }
+
+    this.setState({ editLoading: true });
+    try {
+      // Username change is handled atomically by the Cloud Function
+      if (profile.username && profile.username !== this._storedUsername) {
+        await callChangeUsername(profile.username);
+        this._storedUsername = profile.username;
+      }
+
+      await saveUserProfile(user.uid, {
+        name:            profile.name,
+        bio:             profile.bio,
+        location:        profile.location,
+        website:         profile.website,
+        websiteLabel:    profile.websiteLabel,
+        profilePhotoUrl: profile.avatarUrl || null,
+      });
+      this.setState({ editLoading: false, screen: 'profile', slide: 0, usernameStatus: 'idle' });
+      this.flash('Profile saved');
+    } catch (err) {
+      this.setState({ editLoading: false });
+      const isConflict = err?.code === 'functions/already-exists' || err?.message?.includes('already taken');
+      this.flash(isConflict ? 'Username already taken — choose another' : 'Save failed — try again');
+    }
+  };
+
+  handleGoogleSignIn = async () => {
+    this.setState({ loginLoading: true });
+    try {
+      await signInWithGoogle();
+      this.setState({ loginModal: false, loginLoading: false, screen: 'profile', slide: 0, lb: null });
+    } catch (err) {
+      // user closed the popup or auth failed
+      this.setState({ loginLoading: false });
+    }
+  };
+
+  handleSignOut = async () => {
+    await signOutUser();
+    this.setState({ screen: 'home', user: null });
+    this.flash('Signed out');
+  };
 
   openGallery = (id) => {
     this.setState({ screen: 'gallery', activeId: id, lb: null });
@@ -196,12 +358,15 @@ class App extends React.Component {
   };
 
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, profile, editLoading, avatarUploading, usernameStatus } = this.state;
 
-    const isHome    = screen === 'home';
-    const isGallery = screen === 'gallery';
-    const isCreate  = screen === 'create';
-    const isProfile = screen === 'profile';
+    const isHome        = screen === 'home';
+    const isGallery     = screen === 'gallery';
+    const isCreate      = screen === 'create';
+    const isProfile     = screen === 'profile';
+    const isEditProfile = screen === 'editProfile';
+
+    const avatarSrc = profile.avatarUrl || user?.photoURL || null;
 
     const ag = galleries.find(g => g.id === activeId);
     const curMedia = ag
@@ -253,8 +418,11 @@ class App extends React.Component {
                 <div style={{ fontFamily: serif, fontSize: '30px', letterSpacing: '0.5px', lineHeight: 1 }}>Encore</div>
                 <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', animation: 'pulse 2.4s ease-in-out infinite' }} />
               </div>
-              <div onClick={this.goProfile} className="profile-btn" style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1.5px solid oklch(1 0 0/0.16)', cursor: 'pointer' }}>
-                <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg,oklch(0.62 0.18 5),oklch(0.55 0.18 290))' }} />
+              <div onClick={this.goProfile} className="profile-btn" style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1.5px solid oklch(1 0 0/0.16)', cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                {avatarSrc
+                  ? <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg,oklch(0.62 0.18 5),oklch(0.55 0.18 290))' }} />
+                }
               </div>
             </div>
 
@@ -492,15 +660,48 @@ class App extends React.Component {
             </div>
 
             <div style={{ padding: '0 22px', marginTop: '-44px', position: 'relative' }}>
-              <div style={{ width: '86px', height: '86px', borderRadius: '50%', border: '3px solid #08070d', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', background: avStr(320) }} />
+              <div style={{ width: '86px', height: '86px', borderRadius: '50%', border: '3px solid #08070d', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden', background: avStr(320) }}>
+                {avatarSrc && <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+              </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '14px' }}>
                 <div>
-                  <div style={{ fontFamily: serif, fontSize: '30px', lineHeight: 1 }}>Mara Quinn</div>
-                  <div style={{ fontSize: '13.5px', color: 'oklch(0.6 0.01 285)', marginTop: '3px' }}>@mara.k</div>
+                  <div style={{ fontFamily: serif, fontSize: '30px', lineHeight: 1 }}>{profile.name || user?.displayName || 'Your Profile'}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <div style={{ fontSize: '13.5px', color: 'oklch(0.6 0.01 285)' }}>
+                      {profile.username
+                        ? `@${profile.username}`
+                        : '@' + (profile.name || user?.displayName || '').toLowerCase().replace(/\s+/g, '.')}
+                    </div>
+                    {profile.username && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`https://encore.app/@${profile.username}`);
+                          this.flash('Link copied!');
+                        }}
+                        style={{ fontSize: '10.5px', color: 'oklch(0.55 0.01 285)', background: 'oklch(0.2 0.014 285/0.5)', border: '1px solid oklch(1 0 0/0.08)', borderRadius: '6px', padding: '2px 7px', cursor: 'pointer', letterSpacing: '0.3px' }}
+                      >
+                        Copy link
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <button className="edit-btn" style={{ padding: '9px 18px', borderRadius: '999px', border: '1px solid oklch(1 0 0/0.14)', background: 'oklch(0.2 0.014 285/0.7)', fontSize: '13px', fontWeight: 600, color: 'oklch(0.96 0.005 285)', cursor: 'pointer' }}>Edit</button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={this.goEditProfile} className="edit-btn" style={{ padding: '9px 18px', borderRadius: '999px', border: '1px solid oklch(1 0 0/0.14)', background: 'oklch(0.2 0.014 285/0.7)', fontSize: '13px', fontWeight: 600, color: 'oklch(0.96 0.005 285)', cursor: 'pointer' }}>Edit</button>
+                  <button onClick={this.handleSignOut} style={{ padding: '9px 14px', borderRadius: '999px', border: '1px solid oklch(1 0 0/0.1)', background: 'none', fontSize: '13px', color: 'oklch(0.55 0.01 285)', cursor: 'pointer' }}>Out</button>
+                </div>
               </div>
-              <div style={{ fontSize: '14px', color: 'oklch(0.78 0.01 285)', marginTop: '14px', lineHeight: 1.55 }}>Front-row regular chasing stage light and bass that you feel in your chest. Always trading photos after the show.</div>
+              <div style={{ fontSize: '14px', color: 'oklch(0.78 0.01 285)', marginTop: '14px', lineHeight: 1.55 }}>{profile.bio || 'Front-row regular chasing stage light and bass that you feel in your chest.'}</div>
+              {(profile.location || profile.website) && (
+                <div style={{ display: 'flex', gap: '16px', marginTop: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {profile.location && <div style={{ fontSize: '13px', color: 'oklch(0.58 0.01 285)' }}>📍 {profile.location}</div>}
+                  {profile.website && (
+                    <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'oklch(0.68 0.14 260)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      {profile.websiteLabel || profile.website}
+                    </a>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '26px', marginTop: '18px' }}>
                 <div><span style={{ fontFamily: serif, fontSize: '24px' }}>{galleries.length}</span> <span style={{ fontSize: '13px', color: 'oklch(0.6 0.01 285)' }}>concerts</span></div>
                 <div><span style={{ fontFamily: serif, fontSize: '24px' }}>{totalPhotos}</span> <span style={{ fontSize: '13px', color: 'oklch(0.6 0.01 285)' }}>photos</span></div>
@@ -582,6 +783,186 @@ class App extends React.Component {
               {lbMedia.isOwn && (
                 <button onClick={() => this.delMedia(lbMedia.id)} style={{ padding: '9px 16px', borderRadius: '999px', background: 'oklch(0.3 0.13 25/0.4)', border: '1px solid oklch(0.5 0.13 25/0.4)', fontSize: '13px', fontWeight: 600, color: 'oklch(0.82 0.1 25)', cursor: 'pointer' }}>Delete</button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── EDIT PROFILE ─────────────────────────────────────────────────── */}
+        {isEditProfile && (
+          <div style={{ position: 'relative', zIndex: 1, animation: 'fadeUp .4s ease both', padding: '22px 20px 40px' }}>
+
+            {/* header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+              <button onClick={() => this.setState({ screen: 'profile' })} style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'oklch(0.2 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.1)', fontSize: '18px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>‹</button>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'oklch(0.88 0.01 285)' }}>Edit profile</div>
+              <div style={{ width: '36px' }} />
+            </div>
+
+            {/* avatar picker */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+              <div style={{ position: 'relative' }}>
+                <div style={{ width: '96px', height: '96px', borderRadius: '50%', border: '3px solid oklch(1 0 0/0.12)', overflow: 'hidden', background: avStr(320) }}>
+                  {avatarSrc && !avatarUploading && <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                  {avatarUploading && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(8,7,13,0.6)' }}>
+                      <div style={{ width: '22px', height: '22px', border: '2px solid oklch(1 0 0/0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                    </div>
+                  )}
+                </div>
+                <label style={{ position: 'absolute', bottom: '2px', right: '2px', width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  <input type="file" accept="image/*" onChange={this.handleAvatarChange} style={{ display: 'none' }} />
+                </label>
+              </div>
+            </div>
+
+            {/* fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {[
+                { label: 'NAME',     key: 'name',     type: 'text',  placeholder: 'Your display name' },
+                { label: 'LOCATION', key: 'location', type: 'text',  placeholder: 'e.g. Austin, TX' },
+              ].map(({ label, key, type, placeholder }) => (
+                <div key={key}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>{label}</label>
+                  <input
+                    type={type}
+                    value={profile[key]}
+                    onChange={this.setProfileField(key)}
+                    placeholder={placeholder}
+                    style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
+                  />
+                </div>
+              ))}
+
+              {/* username @handle */}
+              {(() => {
+                const uBorder = usernameStatus === 'taken' || usernameStatus === 'invalid'
+                  ? '1px solid oklch(0.52 0.18 25/0.7)'
+                  : usernameStatus === 'available'
+                  ? '1px solid oklch(0.56 0.16 145/0.6)'
+                  : '1px solid oklch(1 0 0/0.09)';
+                return (
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>USERNAME</label>
+                    <div style={{ position: 'relative', marginTop: '7px' }}>
+                      <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '15px', color: 'oklch(0.52 0.01 285)', pointerEvents: 'none', userSelect: 'none' }}>@</div>
+                      <input
+                        type="text"
+                        value={profile.username}
+                        onChange={this.handleUsernameChange}
+                        placeholder="yourhandle"
+                        maxLength={20}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        style={{ width: '100%', padding: '14px 40px 14px 28px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: uBorder, fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
+                      />
+                      <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                        {usernameStatus === 'checking' && (
+                          <div style={{ width: '15px', height: '15px', border: '2px solid oklch(1 0 0/0.15)', borderTopColor: 'oklch(0.6 0.01 285)', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                        )}
+                        {usernameStatus === 'available' && <span style={{ fontSize: '14px', color: 'oklch(0.72 0.16 145)' }}>✓</span>}
+                        {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <span style={{ fontSize: '14px', color: 'oklch(0.65 0.18 25)' }}>✗</span>}
+                      </div>
+                    </div>
+                    {usernameStatus === 'taken' && (
+                      <div style={{ fontSize: '11.5px', color: 'oklch(0.65 0.18 25)', marginTop: '5px' }}>That username is already taken</div>
+                    )}
+                    {usernameStatus === 'available' && profile.username !== this._storedUsername && (
+                      <div style={{ fontSize: '11.5px', color: 'oklch(0.68 0.15 145)', marginTop: '5px' }}>Available</div>
+                    )}
+                    {(usernameStatus === 'invalid' || usernameStatus === 'short') && (
+                      <div style={{ fontSize: '11.5px', color: 'oklch(0.65 0.18 25)', marginTop: '5px' }}>3–20 chars · letters, numbers, _ or . · start and end with a letter or number</div>
+                    )}
+                    {!profile.username && usernameStatus === 'idle' && (
+                      <div style={{ fontSize: '11.5px', color: 'oklch(0.45 0.01 285)', marginTop: '5px' }}>Sets your profile URL: encore.app/@yourhandle</div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* website URL + label pair */}
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>LINK</label>
+                <input
+                  type="url"
+                  value={profile.website}
+                  onChange={this.setProfileField('website')}
+                  placeholder="https://yoursite.com"
+                  style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px 12px 0 0', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', borderBottom: '1px solid oklch(1 0 0/0.04)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block' }}
+                />
+                <input
+                  type="text"
+                  value={profile.websiteLabel}
+                  onChange={this.setProfileField('websiteLabel')}
+                  placeholder="Label (e.g. Instagram, Portfolio)"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '0 0 12px 12px', background: 'oklch(0.15 0.012 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', borderTop: 'none', fontSize: '13.5px', color: 'oklch(0.88 0.005 285)', boxSizing: 'border-box', outline: 'none', display: 'block' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', color: 'oklch(0.55 0.01 285)' }}>BIO</label>
+                <textarea
+                  value={profile.bio}
+                  onChange={this.setProfileField('bio')}
+                  placeholder="Tell the crowd who you are…"
+                  rows={4}
+                  style={{ width: '100%', marginTop: '7px', padding: '14px 16px', borderRadius: '12px', background: 'oklch(0.18 0.014 285/0.7)', border: '1px solid oklch(1 0 0/0.09)', fontSize: '15px', color: '#fff', boxSizing: 'border-box', outline: 'none', display: 'block', resize: 'none', lineHeight: 1.55 }}
+                />
+              </div>
+            </div>
+
+            {/* save */}
+            <button
+              onClick={this.saveProfile}
+              disabled={editLoading}
+              style={{ width: '100%', marginTop: '28px', padding: '16px', borderRadius: '14px', background: editLoading ? 'oklch(0.4 0.08 285)' : 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', color: '#fff', fontSize: '15.5px', fontWeight: 700, boxShadow: editLoading ? 'none' : '0 10px 30px oklch(0.64 0.2 320/0.35)', border: 'none', cursor: editLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            >
+              {editLoading && <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />}
+              {editLoading ? 'Saving…' : 'Save profile'}
+            </button>
+          </div>
+        )}
+
+        {/* ── LOGIN MODAL ──────────────────────────────────────────────────── */}
+        {loginModal && (
+          <div onClick={this.closeLoginModal} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(5,4,9,0.78)', backdropFilter: 'blur(18px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', maxWidth: '480px', margin: '0 auto', animation: 'fadeIn .25s ease both' }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '32px 24px 44px', borderRadius: '28px 28px 0 0', background: 'linear-gradient(180deg, oklch(0.16 0.018 285), oklch(0.12 0.014 285))', border: '1px solid oklch(1 0 0/0.1)', borderBottom: 'none', boxShadow: '0 -24px 60px rgba(0,0,0,0.6)', animation: 'fadeUp .3s ease both' }}>
+
+              {/* close pill */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
+                <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'oklch(1 0 0/0.15)' }} />
+              </div>
+
+              {/* wordmark */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <div style={{ fontFamily: "'Instrument Serif', serif", fontSize: '34px', letterSpacing: '0.5px', lineHeight: 1 }}>Encore</div>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'linear-gradient(120deg,oklch(0.7 0.2 5),oklch(0.64 0.2 290))', animation: 'pulse 2.4s ease-in-out infinite' }} />
+              </div>
+              <div style={{ fontSize: '15px', color: 'oklch(0.68 0.01 285)', lineHeight: 1.5, marginBottom: '32px' }}>Save your shots, see who else was there, and revisit every show.</div>
+
+              {/* Google button */}
+              <button
+                onClick={this.handleGoogleSignIn}
+                disabled={loginLoading}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '15px 20px', borderRadius: '14px', background: loginLoading ? 'oklch(0.88 0 0)' : '#fff', border: 'none', cursor: loginLoading ? 'default' : 'pointer', fontSize: '15px', fontWeight: 600, color: '#1f1f1f', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', transition: 'opacity .15s ease', opacity: loginLoading ? 0.7 : 1 }}
+              >
+                {loginLoading ? (
+                  <div style={{ width: '20px', height: '20px', border: '2px solid #ccc', borderTopColor: '#555', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 48 48">
+                    <path fill="#4285F4" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.6 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+                    <path fill="#34A853" d="M6.3 14.7l6.6 4.8C14.7 15.8 19 13 24 13c3.1 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
+                    <path fill="#FBBC05" d="M24 44c5.2 0 9.9-1.8 13.5-4.8l-6.2-5.2C29.4 35.6 26.8 36.5 24 36.5c-5.2 0-9.7-3.3-11.3-8l-6.6 5.1C9.5 39.5 16.3 44 24 44z"/>
+                    <path fill="#EA4335" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.3 5.5l6.2 5.2C41.6 36.2 44 30.5 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+                  </svg>
+                )}
+                {loginLoading ? 'Signing in…' : 'Continue with Google'}
+              </button>
+
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'oklch(0.48 0.01 285)', marginTop: '16px', lineHeight: 1.5 }}>By continuing you agree to our terms. We only use your account to identify you.</div>
             </div>
           </div>
         )}

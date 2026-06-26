@@ -23,7 +23,9 @@ service cloud.firestore {
     function clientSafeUserUpdate() {
       return request.resource.data.diff(resource.data)
         .affectedKeys()
-        .hasOnly(['username', 'profilePhotoUrl', 'bio', 'favoriteItemIds']);
+        // 'username' (the @handle) is Cloud-Function-only — never in this list
+        .hasOnly(['name', 'profilePhotoUrl', 'bio', 'favoriteItemIds',
+                  'location', 'website', 'websiteLabel']);
     }
 
     // ── users/{uid} ───────────────────────────────────────────────────────
@@ -33,12 +35,29 @@ service cloud.firestore {
 
       allow create: if isUid(uid)
         && request.resource.data.keys().hasOnly(
-             ['username', 'profilePhotoUrl', 'bio', 'favoriteItemIds'])
-        && !request.resource.data.keys().hasAny(['concertsAttendedCount']);
+             ['name', 'profilePhotoUrl', 'bio', 'favoriteItemIds',
+              'location', 'website', 'websiteLabel'])
+        && !request.resource.data.keys().hasAny(['concertsAttendedCount', 'username']);
 
       allow update: if isUid(uid) && clientSafeUserUpdate();
 
       allow delete: if false;
+    }
+
+    // ── usernames/{username} ──────────────────────────────────────────────
+    // Uniqueness index: username → uid.  Written only by Cloud Functions.
+
+    match /usernames/{username} {
+      allow read: if true;        // public — anyone can check availability
+      allow write: if false;      // Cloud Function (Admin SDK) only
+    }
+
+    // ── usernameHistory/{username} ────────────────────────────────────────
+    // Tracks former usernames for redirect resolution.
+
+    match /usernameHistory/{username} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // ── galleries/{galleryId} ─────────────────────────────────────────────
