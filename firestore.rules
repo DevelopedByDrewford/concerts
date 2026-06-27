@@ -24,7 +24,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data)
         .affectedKeys()
         // 'username' (the @handle) is Cloud-Function-only — never in this list
-        .hasOnly(['name', 'profilePhotoUrl', 'bio', 'favoriteItemIds',
+        .hasOnly(['name', 'profilePhotoUrl', 'bannerUrl', 'bio', 'favoriteItemIds',
                   'location', 'website', 'websiteLabel']);
     }
 
@@ -35,7 +35,7 @@ service cloud.firestore {
 
       allow create: if isUid(uid)
         && request.resource.data.keys().hasOnly(
-             ['name', 'profilePhotoUrl', 'bio', 'favoriteItemIds',
+             ['name', 'profilePhotoUrl', 'bannerUrl', 'bio', 'favoriteItemIds',
               'location', 'website', 'websiteLabel'])
         && !request.resource.data.keys().hasAny(['concertsAttendedCount', 'username']);
 
