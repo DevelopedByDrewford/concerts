@@ -182,7 +182,15 @@ export default function UserProfileContainer({
         {curFav && (
           <div className="profile__featured-card-wrap">
             <div className="profile__featured-card">
-              <div key={fi} className="profile__featured-cover" style={{ background: coverStr(curFav.g.h1, curFav.g.h2) }} />
+              <div
+                key={fi}
+                className="profile__featured-cover"
+                style={curFav.g.coverUrl ? {
+                  backgroundImage: `url(${curFav.g.coverUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                } : { background: coverStr(curFav.g.h1, curFav.g.h2) }}
+              />
               <div className="profile__featured-scrim" />
               <div className="profile__featured-info">
                 <div className="profile__featured-eyebrow">My favorite</div>
@@ -202,7 +210,14 @@ export default function UserProfileContainer({
         <div className="profile__concerts-list">
           {galleries.map(g => (
             <div key={g.id} onClick={() => onGoBack(g.id)} className="concert-row">
-              <div className="concert-row__thumb" style={{ background: coverStr(g.h1, g.h2) }} />
+              <div
+                className="concert-row__thumb"
+                style={g.coverUrl ? {
+                  backgroundImage: `url(${g.coverUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                } : { background: coverStr(g.h1, g.h2) }}
+              />
               <div className="concert-row__info">
                 <div className="concert-row__artist">{g.artist}</div>
                 <div className="concert-row__meta">{g.venue + ' · ' + g.month + ' ' + g.year}</div>

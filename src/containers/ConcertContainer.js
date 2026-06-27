@@ -5,7 +5,7 @@ import { coverStr, tileStr, avStr } from '../utils/colorHelpers';
 export default function ConcertContainer({
   screen,
   gallery, galleryLoading = false, curMedia,
-  onGoBack, onOpenLb, onAddMedia, onDelMedia,
+  user, onGoBack, onOpenLb, onAddMedia, onDelMedia, onSetCover,
   create, onSetArtist, onSetVenue, onSetCity, onSetMonth, onSetYear, onCreateSubmit,
   createLoading, duplicateGallery, onCloseDuplicate, onOpenDuplicateGallery,
   onFlash,
@@ -58,11 +58,21 @@ export default function ConcertContainer({
   }
 
   if (screen === 'gallery' && gallery) {
+    const firstMedia = curMedia.find(m => !m.isUploading);
+    const effectiveCoverUrl = gallery.coverUrl || firstMedia?.thumbnailUrl || firstMedia?.displayUrl || null;
+
     return (
       <div className="gallery">
 
         <div className="gallery__hero">
-          <div className="gallery__hero-cover" style={{ background: coverStr(gallery.h1, gallery.h2) }} />
+          <div
+            className="gallery__hero-cover"
+            style={effectiveCoverUrl ? {
+              backgroundImage: `url(${effectiveCoverUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            } : { background: coverStr(gallery.h1, gallery.h2) }}
+          />
           <div className="gallery__hero-scrim" />
           <button onClick={onGoBack} className="gallery__hero-back">‹</button>
           <div className="gallery__hero-info">
@@ -167,6 +177,9 @@ export default function ConcertContainer({
                   </>
                 )}
               </div>
+              {user && !m.isUploading && (
+                <button onClick={() => onSetCover(m.id)} className="gallery__cover-btn">Cover</button>
+              )}
               {m.isOwn && !m.isUploading && (
                 <button onClick={() => onDelMedia(m.id)} className="gallery__delete-btn delete-btn">Delete</button>
               )}

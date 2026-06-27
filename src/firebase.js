@@ -178,6 +178,18 @@ export async function searchGalleries(term) {
     );
 }
 
+export async function findGalleryBySlug(slug) {
+  const slugify = s => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const snap = await getDocs(query(collection(db, 'galleries'), limit(200)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .find(g => {
+      const [month = '', year = ''] = (g.monthYear || '').split(' ');
+      const p = `/g/${slugify(g.artistName)}/${slugify(g.venue)}/${slugify(g.city)}/${slugify(month)}-${slugify(year)}`;
+      return p === slug;
+    }) || null;
+}
+
 export async function findDuplicateGallery(artistName, venue, city, monthYear) {
   const q = query(
     collection(db, 'galleries'),
@@ -190,6 +202,10 @@ export async function findDuplicateGallery(artistName, venue, city, monthYear) {
   if (snap.empty) return null;
   const d = snap.docs[0];
   return { id: d.id, ...d.data() };
+}
+
+export async function setGalleryCover(galleryId, coverUrl) {
+  await setDoc(doc(db, 'galleries', galleryId), { coverUrl }, { merge: true });
 }
 
 export async function createGallery(uid, { artistName, venue, city, monthYear }) {

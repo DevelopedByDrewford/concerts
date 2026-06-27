@@ -55,7 +55,14 @@ export default function HomeContainer({ galleries, user, profile, onOpenGallery,
         return (
           <div className="home__featured">
             <div onClick={() => onOpenGallery(g.id)} className="home__gallery-card gallery-card">
-              <div className="home__gallery-cover" style={{ background: coverStr(g.h1, g.h2) }} />
+              <div
+                className="home__gallery-cover"
+                style={g.coverUrl ? {
+                  backgroundImage: `url(${g.coverUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                } : { background: coverStr(g.h1, g.h2) }}
+              />
               <div className="home__gallery-scrim" />
               <div className="home__gallery-badge">
                 <div className="home__gallery-badge-dot" />
@@ -85,7 +92,14 @@ export default function HomeContainer({ galleries, user, profile, onOpenGallery,
           const avs = [g.h1, g.h2, (g.h1 + 40) % 360];
           return (
             <div key={g.id} onClick={() => onOpenGallery(g.id)} className="feed-card">
-              <div className="feed-cover" style={{ background: coverStr(g.h1, g.h2) }} />
+              <div
+                className="feed-cover"
+                style={g.coverUrl ? {
+                  backgroundImage: `url(${g.coverUrl})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                } : { background: coverStr(g.h1, g.h2) }}
+              />
               <div className="feed-card__scrim" />
               <div className="feed-card__date">{g.month} {g.year}</div>
               <div className="feed-card__info">

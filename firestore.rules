@@ -20,6 +20,12 @@ service cloud.firestore {
         .hasOnly(['artistName', 'city', 'venue', 'monthYear']);
     }
 
+    function coverOnlyUpdate() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly(['coverUrl']);
+    }
+
     function clientSafeUserUpdate() {
       return request.resource.data.diff(resource.data)
         .affectedKeys()
@@ -80,7 +86,7 @@ service cloud.firestore {
     // ── galleries/{galleryId} ─────────────────────────────────────────────
 
     match /galleries/{galleryId} {
-      allow read: if isAuthed();
+      allow read: if true;
 
       allow create: if isAuthed()
         && request.resource.data.createdBy == request.auth.uid
@@ -91,19 +97,20 @@ service cloud.firestore {
         && request.resource.data.smugmugAlbumKey == null
         && request.resource.data.smugmugAlbumUri == null;
 
-      // Only the gallery creator may edit descriptive fields; smug keys
-      // are server-only and are excluded from the allowed change set.
-      allow update: if isAuthed()
-        && isUid(resource.data.createdBy)
-        && request.resource.data.createdBy == resource.data.createdBy
-        && clientSafeGalleryUpdate();
+      // Gallery creator may edit descriptive fields. Any authenticated user
+      // may update coverUrl (community-curated album cover).
+      allow update: if (isAuthed()
+          && isUid(resource.data.createdBy)
+          && request.resource.data.createdBy == resource.data.createdBy
+          && clientSafeGalleryUpdate())
+        || (isAuthed() && coverOnlyUpdate());
 
       allow delete: if false;
 
       // ── galleries/{galleryId}/items/{itemId} ─────────────────────────
 
       match /items/{itemId} {
-        allow read: if isAuthed();
+        allow read: if true;
         // All item writes happen via Cloud Functions (Admin SDK).
         allow write: if false;
       }

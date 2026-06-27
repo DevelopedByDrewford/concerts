@@ -511,6 +511,21 @@
   color: oklch(0.85 0.08 25);
 }
 
+.gallery__cover-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  background: rgba(10, 8, 16, 0.62);
+  backdrop-filter: blur(6px);
+  border: 1px solid oklch(1 0 0 / 0.14);
+  font-size: 11px;
+  font-weight: 600;
+  color: oklch(0.82 0.14 285);
+  cursor: pointer;
+}
+
 .create__preview-cover {
   position: absolute;
   inset: 0;

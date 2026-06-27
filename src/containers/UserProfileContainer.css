@@ -340,6 +340,7 @@
   height: 56px;
   border-radius: 10px;
   flex: none;
+  overflow: hidden;
 }
 
 .concert-row__info {

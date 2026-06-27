@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover } from './firebase';
 import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
@@ -80,9 +80,55 @@ class App extends React.Component {
     return {
       id: doc.id, artist: doc.artistName || '', venue: doc.venue || '',
       city: doc.city || '', month, year, h1, h2,
+      coverUrl: doc.coverUrl || null,
       media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
     };
   }
+
+  _updateTitle = () => {
+    const { screen, activeId, galleryLoading, publicProfile, profile, publicProfileLoading, userGalleries, galleries } = this.state;
+    if (screen === 'gallery' && !galleryLoading) {
+      const allG = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
+      const ag = allG.find(g => g.id === activeId);
+      document.title = ag?.artist ? `${ag.artist} — Encore` : 'Encore';
+    } else if ((screen === 'profile' || screen === 'editProfile') && !publicProfileLoading) {
+      const name = (publicProfile || profile).name;
+      document.title = name ? `${name} — Encore` : 'Encore';
+    } else {
+      document.title = 'Encore';
+    }
+  };
+
+  _resolvePendingGallery = async (path) => {
+    try {
+      const gallery = await findGalleryBySlug(path);
+      if (this._pendingGalleryPath !== path) return; // already resolved by auth fast-path
+      this._pendingGalleryPath = null;
+      if (gallery) {
+        const localGallery = this._firestoreGalleryToLocal(gallery);
+        this.setState(s => ({
+          screen: 'gallery',
+          activeId: gallery.id,
+          galleryLoading: false,
+          galleries: s.galleries.find(g => g.id === gallery.id)
+            ? s.galleries
+            : [...s.galleries, localGallery],
+        }));
+        loadGalleryItems(gallery.id)
+          .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [gallery.id]: items } })))
+          .catch(() => {});
+      } else {
+        window.history.replaceState(null, '', '/');
+        this.setState({ screen: 'home', galleryLoading: false });
+      }
+    } catch {
+      if (this._pendingGalleryPath === path) {
+        this._pendingGalleryPath = null;
+        window.history.replaceState(null, '', '/');
+        this.setState({ screen: 'home', galleryLoading: false });
+      }
+    }
+  };
 
   componentDidMount() {
     this._iv = setInterval(() => {
@@ -103,26 +149,24 @@ class App extends React.Component {
         const handle    = isLegacy ? '' : rawStored;
         this._storedUsername = handle;
         const userGalleries = rawDocs.map(d => this._firestoreGalleryToLocal(d));
-        let galleryNotFound = false;
         if (this._pendingGalleryPath) {
           const path = this._pendingGalleryPath;
-          this._pendingGalleryPath = null;
-          const allG = [...userGalleries, ...this.state.galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
-          const found = allG.find(g => this._galleryPath(g) === path);
+          // Fast path: gallery is one this user created — no Firestore search needed.
+          const found = userGalleries.find(g => this._galleryPath(g) === path);
           if (found) {
+            this._pendingGalleryPath = null;
             this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, galleryLoading: false, lb: null });
             loadGalleryItems(found.id)
               .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items } })))
               .catch(() => {});
             return;
           }
-          window.history.replaceState(null, '', '/');
-          galleryNotFound = true;
+          // Gallery not owned by this user — _resolvePendingGallery is already running.
+          // Fall through so user/profile state is updated without disrupting the gallery load.
         }
         this.setState(s => ({
           user,
           userGalleries,
-          ...(galleryNotFound ? { screen: 'home', galleryLoading: false } : {}),
           profile: {
             name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
             username:     handle,
@@ -145,6 +189,20 @@ class App extends React.Component {
         this.setState({ user: null, profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
       }
     });
+  }
+
+  componentDidUpdate(_, prevState) {
+    const { screen, activeId, galleryLoading, publicProfile, profile, publicProfileLoading } = this.state;
+    if (
+      prevState.screen             !== screen             ||
+      prevState.activeId           !== activeId           ||
+      prevState.galleryLoading     !== galleryLoading     ||
+      prevState.publicProfile      !== publicProfile      ||
+      prevState.publicProfileLoading !== publicProfileLoading ||
+      prevState.profile            !== profile
+    ) {
+      this._updateTitle();
+    }
   }
 
   componentWillUnmount() {
@@ -181,9 +239,11 @@ class App extends React.Component {
         this.setState({ screen: 'gallery', activeId: found.id, lb: null });
         return;
       }
-      // Galleries not loaded yet — show skeleton immediately, retry after auth resolves.
+      // Show skeleton immediately and fetch from Firestore in the background.
+      // Works for both logged-in and logged-out users since galleries are public.
       this._pendingGalleryPath = path;
       this.setState({ screen: 'gallery', activeId: null, galleryLoading: true, lb: null });
+      this._resolvePendingGallery(path);
       return;
     }
     if (path !== '/') window.history.replaceState(null, '', '/');
@@ -486,11 +546,9 @@ class App extends React.Component {
     if (g) this._pushUrl(this._galleryPath(g));
     this.setState({ screen: 'gallery', activeId: id, lb: null });
     window.scrollTo(0, 0);
-    if (this.state.user) {
-      loadGalleryItems(id)
-        .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items } })))
-        .catch(() => {});
-    }
+    loadGalleryItems(id)
+      .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items } })))
+      .catch(() => {});
   };
 
   openLb  = (i) => this.setState({ lb: i });
@@ -557,6 +615,25 @@ class App extends React.Component {
         return { deleted: d };
       });
       this.flash('Could not delete — try again');
+    }
+  };
+
+  handleSetCover = async (itemId) => {
+    const { activeId, galleryItems, user } = this.state;
+    if (!user || !activeId) return;
+    const item = (galleryItems[activeId] || []).find(i => i.id === itemId);
+    if (!item) return;
+    const coverUrl = item.thumbnailUrl || item.displayUrl || null;
+    if (!coverUrl) return;
+    try {
+      await setGalleryCover(activeId, coverUrl);
+      this.setState(s => ({
+        galleries:     s.galleries.map(g => g.id === activeId ? { ...g, coverUrl } : g),
+        userGalleries: s.userGalleries.map(g => g.id === activeId ? { ...g, coverUrl } : g),
+      }));
+      this.flash('Cover updated');
+    } catch {
+      this.flash('Could not update cover — try again');
     }
   };
 
@@ -652,6 +729,7 @@ class App extends React.Component {
         artist: artistName, venue, city,
         month: create.month, year: create.year,
         h1: 5, h2: 290,
+        coverUrl: null,
         media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
       };
       this._fromUrl = '/';
@@ -753,10 +831,12 @@ class App extends React.Component {
             galleryLoading={galleryLoading}
             curMedia={curMedia}
             create={create}
+            user={user}
             onGoBack={this.goBack}
             onOpenLb={this.openLb}
             onAddMedia={this.addMedia}
             onDelMedia={this.delMedia}
+            onSetCover={this.handleSetCover}
             onSetArtist={this.setArtist}
             onSetVenue={this.setVenue}
             onSetCity={this.setCity}
