@@ -497,25 +497,31 @@
 
 /* ── font picker ────────────────────────────────────────────────────────────── */
 .font-picker {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: row;
   gap: 8px;
   margin-top: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.font-picker::-webkit-scrollbar {
+  display: none;
 }
 
 .font-picker__option {
-  padding: 14px 10px;
+  flex-shrink: 0;
+  padding: 10px 16px;
   border-radius: 12px;
   background: oklch(0.14 0.012 285);
   border: 1.5px solid oklch(0.22 0.015 285);
   cursor: pointer;
-  font-size: 22px;
+  font-size: 20px;
   color: var(--c-text);
   line-height: 1.2;
-  text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: border-color .15s ease, background .15s ease;
 }
 

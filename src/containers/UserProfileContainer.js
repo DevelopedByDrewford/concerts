@@ -3,15 +3,21 @@ import './UserProfileContainer.css';
 import { coverStr, avStr } from '../utils/colorHelpers';
 
 const FONTS = [
-  { value: '',               family: 'Instrument Serif' },
-  { value: 'Unica One',      family: 'Unica One' },
-  { value: 'Asimovian',      family: 'Asimovian' },
-  { value: 'Lavishly Yours', family: 'Lavishly Yours' },
-  { value: 'Mystery Quest',  family: 'Mystery Quest' },
-  { value: 'Marck Script',   family: 'Marck Script' },
-  { value: 'Felipa',         family: 'Felipa' },
-  { value: 'Special Elite',  family: 'Special Elite' },
-  { value: 'Irish Grover',   family: 'Irish Grover' },
+  { value: '',                 family: 'Instrument Serif' },
+  { value: 'Road Rage',        family: 'Road Rage' },
+  { value: 'Permanent Marker', family: 'Permanent Marker' },
+  { value: 'Oswald',           family: 'Oswald' },
+  { value: 'Caveat',           family: 'Caveat' },
+  { value: 'Doto',             family: 'Doto' },
+  { value: 'Federo',           family: 'Federo' },
+  { value: 'Unica One',        family: 'Unica One' },
+  { value: 'Lavishly Yours',   family: 'Lavishly Yours' },
+  { value: 'Mystery Quest',    family: 'Mystery Quest' },
+  { value: 'Marck Script',     family: 'Marck Script' },
+  { value: 'Felipa',           family: 'Felipa' },
+  { value: 'Special Elite',    family: 'Special Elite' },
+  { value: 'Irish Grover',     family: 'Irish Grover' },
+  { value: 'Asimovian',        family: 'Asimovian' },
 ];
 
 export default function UserProfileContainer({
