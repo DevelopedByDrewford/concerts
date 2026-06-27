@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, serverTimestamp } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL, uploadBytesResumable } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 const firebaseConfig = {
@@ -129,6 +129,77 @@ export async function searchUsers(term) {
       (u.name     || '').toLowerCase().includes(q) ||
       (u.username || '').toLowerCase().includes(q)
     );
+}
+
+// ── media uploads ─────────────────────────────────────────────────────────────
+
+export function uploadToStaging(uid, galleryId, fileId, file, onProgress) {
+  const ext  = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+  const path = `staging/${uid}/${galleryId}/${fileId}.${ext}`;
+  const task = uploadBytesResumable(ref(storage, path), file, { contentType: file.type });
+  if (onProgress) task.on('state_changed', snap => onProgress(snap.bytesTransferred / snap.totalBytes));
+  return task;
+}
+
+export function watchUploadJob(fileId, callback) {
+  return onSnapshot(doc(db, 'uploadJobs', fileId), callback);
+}
+
+export async function loadGalleryItems(galleryId) {
+  const snap = await getDocs(collection(db, 'galleries', galleryId, 'items'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export function callDeleteItem(itemId, galleryId) {
+  return httpsCallable(functions, 'deleteItem')({ itemId, galleryId });
+}
+
+// ── galleries ─────────────────────────────────────────────────────────────────
+
+export async function getUserGalleries(uid) {
+  const snap = await getDocs(query(collection(db, 'galleries'), where('createdBy', '==', uid)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function searchGalleries(term) {
+  const q = term.toLowerCase().trim();
+  const snap = await getDocs(query(collection(db, 'galleries'), limit(200)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(g =>
+      (g.artistName || '').toLowerCase().includes(q) ||
+      (g.city       || '').toLowerCase().includes(q) ||
+      (g.venue      || '').toLowerCase().includes(q)
+    );
+}
+
+export async function findDuplicateGallery(artistName, venue, city, monthYear) {
+  const q = query(
+    collection(db, 'galleries'),
+    where('artistName', '==', artistName),
+    where('venue', '==', venue),
+    where('city', '==', city),
+    where('monthYear', '==', monthYear),
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+export async function createGallery(uid, { artistName, venue, city, monthYear }) {
+  const newRef = doc(collection(db, 'galleries'));
+  await setDoc(newRef, {
+    artistName,
+    venue,
+    city,
+    monthYear,
+    createdBy: uid,
+    smugmugAlbumKey: null,
+    smugmugAlbumUri: null,
+    createdAt: serverTimestamp(),
+  });
+  return newRef.id;
 }
 
 // ── username lookup ───────────────────────────────────────────────────────────

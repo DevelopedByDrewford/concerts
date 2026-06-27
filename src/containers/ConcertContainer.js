@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import './ConcertContainer.css';
 import { coverStr, tileStr, avStr } from '../utils/colorHelpers';
 
@@ -7,7 +7,9 @@ export default function ConcertContainer({
   gallery, curMedia,
   onGoBack, onOpenLb, onAddMedia, onDelMedia,
   create, onSetArtist, onSetVenue, onSetCity, onSetMonth, onSetYear, onCreateSubmit,
+  createLoading, duplicateGallery, onCloseDuplicate, onOpenDuplicateGallery,
 }) {
+  const fileInputRef = useRef(null);
   if (screen === 'gallery' && gallery) {
     return (
       <div className="gallery">
@@ -49,34 +51,67 @@ export default function ConcertContainer({
         </div>
 
         <div className="gallery__add-wrap">
-          <button onClick={onAddMedia} className="gallery__add-btn add-btn">
+          <button
+            className="gallery__add-btn add-btn"
+            onClick={() => fileInputRef.current?.click()}
+          >
             <span style={{ fontSize: '19px', fontWeight: 400, lineHeight: 0.7 }}>+</span> Add your photos &amp; videos
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/avi,video/mpeg,video/x-m4v"
+            multiple
+            style={{ display: 'none' }}
+            onChange={e => { onAddMedia(e.target.files); e.target.value = ''; }}
+          />
         </div>
 
         <div className="gallery__grid">
           {curMedia.map((m, i) => (
             <div key={m.id} className="gallery__grid-item" style={{ animationDelay: (i * 0.045) + 's' }}>
               <div
-                onClick={() => onOpenLb(i)}
-                className="gallery__tile media-item"
-                style={{ background: tileStr(m.h1, m.h2, m.L), aspectRatio: String(m.ratio) }}
+                onClick={() => !m.isUploading && onOpenLb(i)}
+                className={`gallery__tile media-item${m.isUploading ? ' gallery__tile--uploading' : ''}`}
+                style={{
+                  background: m.displayUrl || m.localUrl ? undefined : tileStr(m.h1, m.h2, m.L),
+                  aspectRatio: String(m.ratio || 1),
+                }}
               >
-                <div className="gallery__tile-scrim" />
-                {m.type === 'video' && (
+                {(m.thumbnailUrl || m.displayUrl) && !m.isUploading && (
+                  <img src={m.thumbnailUrl || m.displayUrl} alt="" className="gallery__tile-img" />
+                )}
+                {m.isUploading && m.localUrl && (
+                  <img src={m.localUrl} alt="" className="gallery__tile-img gallery__tile-img--preview" />
+                )}
+                {m.isUploading && (
+                  <div className="gallery__tile-upload-overlay">
+                    {m.uploadStatus === 'failed'
+                      ? <span className="gallery__tile-upload-error">✕</span>
+                      : <div className="gallery__tile-upload-ring" style={{ '--p': Math.round((m.progress || 0) * 100) + '%' }} />
+                    }
+                    <span className="gallery__tile-upload-label">
+                      {m.uploadStatus === 'failed' ? 'Failed' : m.uploadStatus === 'processing' ? 'Processing…' : Math.round((m.progress || 0) * 100) + '%'}
+                    </span>
+                  </div>
+                )}
+                {!m.isUploading && (
                   <>
-                    <div className="gallery__tile-play">
-                      <div className="gallery__tile-play__triangle" />
+                    <div className="gallery__tile-scrim" />
+                    {m.type === 'video' && (
+                      <>
+                        <div className="gallery__tile-play"><div className="gallery__tile-play__triangle" /></div>
+                        {m.duration && <div className="gallery__tile-duration">{m.duration}</div>}
+                      </>
+                    )}
+                    <div className="gallery__tile-owner">
+                      <div className="gallery__tile-avatar" style={{ background: avStr(m.ownerH) }} />
+                      <span className="gallery__tile-name">{m.ownerName === 'you' ? 'you' : '@' + m.ownerName}</span>
                     </div>
-                    <div className="gallery__tile-duration">{m.duration}</div>
                   </>
                 )}
-                <div className="gallery__tile-owner">
-                  <div className="gallery__tile-avatar" style={{ background: avStr(m.ownerH) }} />
-                  <span className="gallery__tile-name">{m.ownerName === 'you' ? 'you' : '@' + m.ownerName}</span>
-                </div>
               </div>
-              {m.isOwn && (
+              {m.isOwn && !m.isUploading && (
                 <button onClick={() => onDelMedia(m.id)} className="gallery__delete-btn delete-btn">Delete</button>
               )}
             </div>
@@ -147,8 +182,40 @@ export default function ConcertContainer({
           </div>
         </div>
 
-        <button onClick={onCreateSubmit} className="btn-accent create-gallery-btn" style={{ marginTop: '26px' }}>Create gallery</button>
+        <button onClick={onCreateSubmit} disabled={createLoading} className="btn-accent create-gallery-btn" style={{ marginTop: '26px' }}>
+          {createLoading
+            ? <><div className="spinner" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', display: 'inline-block' }} /> Checking…</>
+            : 'Create gallery'
+          }
+        </button>
         <div className="create__footer-note">Public · anyone can view and contribute</div>
+
+        {duplicateGallery && (
+          <div className="dup-backdrop" onClick={onCloseDuplicate}>
+            <div className="dup-sheet" onClick={e => e.stopPropagation()}>
+              <div className="dup-sheet__handle"><div className="dup-sheet__handle-bar" /></div>
+              <div className="dup-sheet__icon">🎵</div>
+              <div className="dup-sheet__title">Gallery already exists</div>
+              <div className="dup-sheet__body">
+                A gallery for <strong>{duplicateGallery.artistName}</strong> at{' '}
+                <strong>{duplicateGallery.venue}</strong> in{' '}
+                <strong>{duplicateGallery.city}</strong> ({duplicateGallery.monthYear}) was already created.
+              </div>
+              {duplicateGallery.localId ? (
+                <button
+                  className="btn-accent"
+                  style={{ width: '100%' }}
+                  onClick={() => { onCloseDuplicate(); onOpenDuplicateGallery(duplicateGallery.localId); }}
+                >
+                  View gallery
+                </button>
+              ) : (
+                <div className="dup-sheet__note">Anyone at this show can find and contribute to it.</div>
+              )}
+              <button className="dup-sheet__dismiss" onClick={onCloseDuplicate}>Dismiss</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

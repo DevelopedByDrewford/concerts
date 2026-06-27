@@ -1,6 +1,7 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem } from './firebase';
+import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
@@ -44,10 +45,42 @@ class App extends React.Component {
     searchQuery:       '',
     searchResults:     null,
     searchLoading:     false,
+    duplicateGallery:  null,
+    createLoading:     false,
+    userGalleries:     [],
+    galleryItems:      {},   // { [galleryId]: ItemDoc[] }
+    uploads:           {},   // { [fileId]: upload descriptor }
   };
 
   _storedUsername = '';
   _usernameTimer  = null;
+  _fromUrl        = '/';
+  _jobUnsubs      = {};   // fileId → unsubscribe fn for uploadJobs onSnapshot
+
+  _slugify = (s) => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  _galleryPath = (g) => {
+    const s = this._slugify;
+    return `/g/${s(g.artist)}/${s(g.venue)}/${s(g.city)}/${s(g.month)}-${s(g.year)}`;
+  };
+
+  _allGalleries = () => {
+    const { userGalleries, galleries } = this.state;
+    return [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
+  };
+
+  _firestoreGalleryToLocal(doc) {
+    const [month = '', year = ''] = (doc.monthYear || '').split(' ');
+    // deterministic hues from doc ID so color is stable across sessions
+    let h1 = 0;
+    for (let i = 0; i < doc.id.length; i++) h1 = (h1 + doc.id.charCodeAt(i)) % 360;
+    const h2 = (h1 + 55) % 360;
+    return {
+      id: doc.id, artist: doc.artistName || '', venue: doc.venue || '',
+      city: doc.city || '', month, year, h1, h2,
+      media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
+    };
+  }
 
   componentDidMount() {
     this._iv = setInterval(() => {
@@ -59,13 +92,29 @@ class App extends React.Component {
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
-        const stored    = await loadUserProfile(user.uid);
+        const [stored, rawDocs] = await Promise.all([
+          loadUserProfile(user.uid),
+          getUserGalleries(user.uid),
+        ]);
         const rawStored = stored?.username || '';
         const isLegacy  = /\s/.test(rawStored) || rawStored !== rawStored.toLowerCase();
         const handle    = isLegacy ? '' : rawStored;
         this._storedUsername = handle;
+        const userGalleries = rawDocs.map(d => this._firestoreGalleryToLocal(d));
+        if (this._pendingGalleryPath) {
+          const path = this._pendingGalleryPath;
+          this._pendingGalleryPath = null;
+          const allG = [...userGalleries, ...this.state.galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
+          const found = allG.find(g => this._galleryPath(g) === path);
+          if (found) {
+            this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, lb: null });
+            return;
+          }
+          window.history.replaceState(null, '', '/');
+        }
         this.setState(s => ({
           user,
+          userGalleries,
           profile: {
             name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
             username:     handle,
@@ -95,6 +144,7 @@ class App extends React.Component {
     if (this._tt) clearTimeout(this._tt);
     if (this._unsubAuth) this._unsubAuth();
     window.removeEventListener('popstate', this._handlePopState);
+    Object.values(this._jobUnsubs).forEach(unsub => unsub());
   }
 
   flash = (msg) => {
@@ -109,14 +159,24 @@ class App extends React.Component {
   _handlePopState = () => this._loadFromUrl(window.location.pathname);
 
   _loadFromUrl(path) {
-    const match = path.match(/^\/@([a-z0-9._]{3,20})$/i);
-    if (match) {
-      this._openUsernameProfile(match[1].toLowerCase());
-    } else {
-      // Any other path → home
-      if (path !== '/') window.history.replaceState(null, '', '/');
-      this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+    const profileMatch = path.match(/^\/@([a-z0-9._]{3,20})$/i);
+    if (profileMatch) {
+      this._openUsernameProfile(profileMatch[1].toLowerCase());
+      return;
     }
+    const galleryMatch = path.match(/^\/g\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)$/);
+    if (galleryMatch) {
+      const found = this._allGalleries().find(g => this._galleryPath(g) === path);
+      if (found) {
+        this.setState({ screen: 'gallery', activeId: found.id, lb: null });
+        return;
+      }
+      // Galleries not loaded yet (auth still resolving) — store and retry after mount
+      this._pendingGalleryPath = path;
+      return;
+    }
+    if (path !== '/') window.history.replaceState(null, '', '/');
+    this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
   }
 
   _openUsernameProfile = async (username) => {
@@ -157,8 +217,14 @@ class App extends React.Component {
   };
   goCreate  = () => this.setState({ screen: 'create', lb: null });
   goBack    = () => {
-    this._pushUrl('/');
-    this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+    const url = this._fromUrl || '/';
+    this._pushUrl(url);
+    const profileMatch = url.match(/^\/@([a-z0-9._]{3,20})$/i);
+    if (profileMatch) {
+      this._openUsernameProfile(profileMatch[1].toLowerCase());
+    } else {
+      this.setState({ screen: 'home', lb: null, publicUid: null, publicProfile: null });
+    }
   };
   goProfile = () => {
     if (!this.state.user) { this.setState({ loginModal: true }); return; }
@@ -242,19 +308,14 @@ class App extends React.Component {
     if (!q) return;
     this.setState({ screen: 'search', searchQuery: q, searchLoading: true, searchResults: null });
     try {
-      const users = await searchUsers(q);
-      const lower = q.toLowerCase();
-      const { galleries } = this.state;
+      const [users, firestoreGalleries] = await Promise.all([searchUsers(q), searchGalleries(q)]);
 
       const artistMap = {}, cityMap = {}, venueMap = {};
-      galleries.forEach(g => {
-        if ((g.artist || '').toLowerCase().includes(lower)) {
-          artistMap[g.artist] = (artistMap[g.artist] || 0) + 1;
-        }
-        if ((g.city || '').toLowerCase().includes(lower)) {
-          cityMap[g.city] = (cityMap[g.city] || 0) + 1;
-        }
-        if ((g.venue || '').toLowerCase().includes(lower)) {
+      firestoreGalleries.forEach(g => {
+        const artist = g.artistName || '';
+        if (artist) artistMap[artist] = (artistMap[artist] || 0) + 1;
+        if (g.city)  cityMap[g.city]  = (cityMap[g.city]  || 0) + 1;
+        if (g.venue) {
           const key = `${g.venue}||${g.city}`;
           if (!venueMap[key]) venueMap[key] = { venue: g.venue, city: g.city, count: 0 };
           venueMap[key].count++;
@@ -407,46 +468,120 @@ class App extends React.Component {
 
   // ── gallery / media ──────────────────────────────────────────────────────────
   openGallery = (id) => {
+    this._fromUrl = window.location.pathname;
+    const g = this._allGalleries().find(g => g.id === id);
+    if (g) this._pushUrl(this._galleryPath(g));
     this.setState({ screen: 'gallery', activeId: id, lb: null });
     window.scrollTo(0, 0);
+    if (this.state.user) {
+      loadGalleryItems(id)
+        .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items } })))
+        .catch(() => {});
+    }
   };
 
   openLb  = (i) => this.setState({ lb: i });
   closeLb = () => this.setState({ lb: null });
 
+  _curMediaLength = () => {
+    const { activeId, deleted, extra, galleryItems, uploads } = this.state;
+    const ag = this._allGalleries().find(g => g.id === activeId);
+    if (!ag) return 0;
+    const real   = (galleryItems[ag.id] || []).filter(i => !deleted[i.id]).length;
+    const inFlight = Object.values(uploads).filter(u => u.galleryId === activeId).length;
+    const legacy = (extra[ag.id] || []).concat((ag.media || []).filter(m => !deleted[m.id])).length;
+    return real + inFlight + legacy;
+  };
+
   nextLb = () => {
-    const { galleries, activeId, deleted, extra, lb } = this.state;
-    const ag = galleries.find(g => g.id === activeId);
-    if (!ag) return;
-    const cm = (extra[ag.id] || []).concat(ag.media.filter(m => !deleted[m.id]));
-    this.setState({ lb: (lb + 1) % cm.length });
+    const len = this._curMediaLength();
+    if (!len) return;
+    this.setState(s => ({ lb: (s.lb + 1) % len }));
   };
 
   prevLb = () => {
-    const { galleries, activeId, deleted, extra, lb } = this.state;
-    const ag = galleries.find(g => g.id === activeId);
-    if (!ag) return;
-    const cm = (extra[ag.id] || []).concat(ag.media.filter(m => !deleted[m.id]));
-    this.setState({ lb: (lb - 1 + cm.length) % cm.length });
+    const len = this._curMediaLength();
+    if (!len) return;
+    this.setState(s => ({ lb: (s.lb - 1 + len) % len }));
   };
 
-  delMedia = (id) => {
-    this.setState(s => ({ deleted: { ...s.deleted, [id]: true }, lb: null }));
-    this.flash('Removed from gallery');
+  delMedia = async (itemId) => {
+    const { activeId, galleryItems } = this.state;
+    const isReal = (galleryItems[activeId] || []).some(i => i.id === itemId);
+    this.setState(s => ({ deleted: { ...s.deleted, [itemId]: true }, lb: null }));
+    if (!isReal) return; // mock item — just hide it
+    try {
+      await callDeleteItem(itemId, activeId);
+      this.setState(s => ({
+        galleryItems: {
+          ...s.galleryItems,
+          [activeId]: (s.galleryItems[activeId] || []).filter(i => i.id !== itemId),
+        },
+      }));
+      this.flash('Photo removed');
+    } catch (err) {
+      this.setState(s => {
+        const d = { ...s.deleted };
+        delete d[itemId];
+        return { deleted: d };
+      });
+      this.flash('Could not delete — try again');
+    }
   };
 
-  addMedia = () => {
-    const { galleries, activeId } = this.state;
-    const ag = galleries.find(g => g.id === activeId);
-    if (!ag) return;
-    const t = Date.now();
-    const items = [0, 1].map(k => ({
-      id: 'own-' + t + '-' + k, ratio: [1.25, 1][k], type: 'photo', duration: null,
-      h1: ag.h1 + (k ? 30 : -10), h2: ag.h2 + (k ? -12 : 18), L: 0.24,
-      isOwn: true, ownerName: 'you', ownerH: 320,
-    }));
-    this.setState(s => ({ extra: { ...s.extra, [ag.id]: items.concat(s.extra[ag.id] || []) } }));
-    this.flash('Added 2 photos to the gallery');
+  addMedia = (files) => {
+    const { user, activeId } = this.state;
+    if (!user || !activeId || !files || !files.length) return;
+    Array.from(files).forEach(file => {
+      const fileId   = crypto.randomUUID();
+      const localUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+      const type     = file.type.startsWith('video/') ? 'video' : 'photo';
+
+      this.setState(s => ({
+        uploads: { ...s.uploads, [fileId]: { galleryId: activeId, file, localUrl, type, status: 'uploading', progress: 0, error: null } },
+      }));
+
+      const task = uploadToStaging(user.uid, activeId, fileId, file, progress => {
+        this.setState(s => ({
+          uploads: { ...s.uploads, [fileId]: { ...s.uploads[fileId], progress } },
+        }));
+      });
+
+      task.then(() => {
+        this.setState(s => ({
+          uploads: { ...s.uploads, [fileId]: { ...s.uploads[fileId], status: 'processing', progress: 1 } },
+        }));
+        const unsub = watchUploadJob(fileId, snap => {
+          if (!snap.exists()) return;
+          const job = snap.data();
+          if (job.status === 'done') {
+            unsub();
+            delete this._jobUnsubs[fileId];
+            loadGalleryItems(activeId).then(items => {
+              this.setState(s => {
+                const uploads = { ...s.uploads };
+                delete uploads[fileId];
+                if (localUrl) URL.revokeObjectURL(localUrl);
+                return { uploads, galleryItems: { ...s.galleryItems, [activeId]: items } };
+              });
+            });
+          } else if (job.status === 'failed') {
+            unsub();
+            delete this._jobUnsubs[fileId];
+            this.setState(s => ({
+              uploads: { ...s.uploads, [fileId]: { ...s.uploads[fileId], status: 'failed', error: job.uploadError || 'Upload failed' } },
+            }));
+            this.flash(job.uploadError || 'Upload failed — try again');
+          }
+        });
+        this._jobUnsubs[fileId] = unsub;
+      }).catch(err => {
+        this.setState(s => ({
+          uploads: { ...s.uploads, [fileId]: { ...s.uploads[fileId], status: 'failed', error: err.message } },
+        }));
+        this.flash('Upload failed — try again');
+      });
+    });
   };
 
   // ── create form ──────────────────────────────────────────────────────────────
@@ -457,39 +592,61 @@ class App extends React.Component {
   setMonth  = this.setF('month');
   setYear   = this.setF('year');
 
-  createSubmit = () => {
-    const c = this.state.create;
-    const g = {
-      id: 'new-' + Date.now(),
-      artist: c.artist || 'Untitled Show',
-      venue:  c.venue  || 'Venue',
-      city:   c.city   || 'City',
-      month: c.month, year: c.year,
-      h1: 5, h2: 290,
-      media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
-    };
-    const aspects = [1.25, 1, 1.33, 1.25];
-    for (let i = 0; i < 4; i++) {
-      g.media.push({
-        id: g.id + '-' + i, ratio: aspects[i], type: 'photo', duration: null,
-        h1: 5 + (i * 12), h2: 290 - (i * 8), L: 0.22,
-        isOwn: true, ownerName: 'you', ownerH: 320,
-      });
+  createSubmit = async () => {
+    const { user, create, galleries } = this.state;
+    if (!user) { this.setState({ loginModal: true }); return; }
+
+    this.setState({ createLoading: true });
+    const artistName = create.artist.trim() || 'Untitled Show';
+    const venue      = create.venue.trim()  || 'Venue';
+    const city       = create.city.trim()   || 'City';
+    const monthYear  = `${create.month} ${create.year}`;
+
+    try {
+      const dup = await findDuplicateGallery(artistName, venue, city, monthYear);
+      if (dup) {
+        const local = galleries.find(g =>
+          (g.artist || '').toLowerCase() === artistName.toLowerCase() &&
+          (g.venue  || '').toLowerCase() === venue.toLowerCase() &&
+          (g.city   || '').toLowerCase() === city.toLowerCase() &&
+          g.month === create.month && g.year === create.year
+        );
+        this.setState({ createLoading: false, duplicateGallery: { ...dup, localId: local?.id } });
+        return;
+      }
+
+      const firestoreId = await createGallery(user.uid, { artistName, venue, city, monthYear });
+      const g = {
+        id: firestoreId,
+        artist: artistName, venue, city,
+        month: create.month, year: create.year,
+        h1: 5, h2: 290,
+        media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
+      };
+      this._fromUrl = '/';
+      this._pushUrl(this._galleryPath(g));
+      this.setState(s => ({
+        galleries:     [g, ...s.galleries],
+        userGalleries: [g, ...s.userGalleries],
+        screen:        'gallery',
+        activeId:      g.id,
+        create:        { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
+        createLoading: false,
+      }));
+      window.scrollTo(0, 0);
+      this.flash('Gallery created — invite your friends');
+    } catch (err) {
+      console.error('createSubmit:', err);
+      this.setState({ createLoading: false });
+      this.flash('Could not create gallery, try again');
     }
-    g.photoCount = 4; g.ownCount = 4;
-    this.setState(s => ({
-      galleries: [g, ...s.galleries],
-      screen:    'gallery',
-      activeId:  g.id,
-      create:    { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
-    }));
-    window.scrollTo(0, 0);
-    this.flash('Gallery created — invite your friends');
   };
+
+  closeDuplicateModal = () => this.setState({ duplicateGallery: null });
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -500,10 +657,34 @@ class App extends React.Component {
     const isOwnProfile   = !publicUid || publicUid === user?.uid;
     const displayProfile = (!isOwnProfile && publicProfile) ? publicProfile : profile;
 
-    const ag = galleries.find(g => g.id === activeId);
-    const curMedia = ag
-      ? (extra[ag.id] || []).concat(ag.media.filter(m => !deleted[m.id]))
+    const allGalleries = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
+    const ag = allGalleries.find(g => g.id === activeId);
+
+    const realItems = ag
+      ? (galleryItems[ag.id] || [])
+          .filter(i => !deleted[i.id])
+          .map(i => ({
+            id: i.id, type: i.type === 'image' ? 'photo' : 'video',
+            displayUrl: i.displayUrl, thumbnailUrl: i.thumbnailUrl,
+            isOwn: i.uploaderUid === user?.uid,
+            ownerUid: i.uploaderUid, ownerName: i.uploaderUid === user?.uid ? 'you' : '',
+            ownerH: uidToHue(i.uploaderUid || ''),
+            ratio: 1, h1: 0, h2: 0, L: 0.2, duration: null,
+          }))
       : [];
+
+    const uploadItems = Object.entries(uploads)
+      .filter(([, u]) => u.galleryId === activeId)
+      .map(([fileId, u]) => ({
+        id: 'upload-' + fileId, type: u.type,
+        isUploading: true, localUrl: u.localUrl,
+        progress: u.progress, uploadStatus: u.status, uploadError: u.error,
+        isOwn: true, ratio: 1, h1: 0, h2: 0, L: 0.2,
+        ownerName: 'you', ownerH: uidToHue(user?.uid || ''), duration: null,
+      }));
+
+    const legacyItems = ag ? (extra[ag.id] || []).concat((ag.media || []).filter(m => !deleted[m.id])) : [];
+    const curMedia = [...realItems, ...uploadItems, ...legacyItems];
 
     return (
       <div className="app-shell">
@@ -548,6 +729,10 @@ class App extends React.Component {
             onSetMonth={this.setMonth}
             onSetYear={this.setYear}
             onCreateSubmit={this.createSubmit}
+            createLoading={createLoading}
+            duplicateGallery={duplicateGallery}
+            onCloseDuplicate={this.closeDuplicateModal}
+            onOpenDuplicateGallery={this.openGallery}
           />
         )}
 
@@ -556,7 +741,7 @@ class App extends React.Component {
             screen={screen}
             user={user}
             profile={displayProfile}
-            galleries={isOwnProfile ? galleries : []}
+            galleries={isOwnProfile ? userGalleries : []}
             isOwn={isOwnProfile}
             slide={slide}
             followStatus={followStatus}

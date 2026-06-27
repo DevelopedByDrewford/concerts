@@ -52,9 +52,7 @@ export default function UserProfileContainer({
           }
           <div className="profile__banner-scrim" />
           {/* <button onClick={onGoBack} className="profile__banner-back">‹</button> */}
-          <button className="profile__banner-back" onClick={() => window.history.back()}>
-            ‹
-          </button>
+          <button className="profile__banner-back" onClick={() => window.location.href = '/'}>‹</button>
         </div>
 
         <div className="profile__body">
