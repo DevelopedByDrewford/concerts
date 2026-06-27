@@ -373,6 +373,41 @@
   color: var(--c-text-dimmest);
 }
 
+/* ── skeleton loader ──────────────────────────────────────────────────────── */
+@keyframes skel-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skel {
+  background: linear-gradient(
+    90deg,
+    oklch(0.18 0.01 285) 0%,
+    oklch(0.24 0.015 285) 50%,
+    oklch(0.18 0.01 285) 100%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+.skel--banner   { position: absolute; inset: 0; border-radius: 0; }
+.skel--avatar   { width: 86px; height: 86px; border-radius: 50%; border: 3px solid #08070d; }
+.skel--name     { width: 55%; height: 28px; margin-bottom: 8px; }
+.skel--handle   { width: 36%; height: 14px; }
+.skel--bio      { height: 13px; margin-top: 14px; }
+.skel--bio-short { width: 60%; margin-top: 6px; }
+.skel--stat     { width: 52px; height: 44px; }
+.skel--section-title { width: 100px; height: 22px; }
+.skel--featured-card {
+  width: 100%;
+  aspect-ratio: 4/5;
+  border-radius: var(--r-xl);
+}
+.skel--concert-thumb { width: 56px; height: 56px; border-radius: 10px; flex: none; }
+.skel--concert-artist { height: 14px; width: 55%; margin-bottom: 8px; }
+.skel--concert-meta   { height: 12px; width: 75%; }
+
 /* ── edit profile ─────────────────────────────────────────────────────────── */
 .edit-profile {
   position: relative;

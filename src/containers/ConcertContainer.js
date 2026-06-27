@@ -4,12 +4,59 @@ import { coverStr, tileStr, avStr } from '../utils/colorHelpers';
 
 export default function ConcertContainer({
   screen,
-  gallery, curMedia,
+  gallery, galleryLoading = false, curMedia,
   onGoBack, onOpenLb, onAddMedia, onDelMedia,
   create, onSetArtist, onSetVenue, onSetCity, onSetMonth, onSetYear, onCreateSubmit,
   createLoading, duplicateGallery, onCloseDuplicate, onOpenDuplicateGallery,
+  onFlash,
 }) {
   const fileInputRef = useRef(null);
+
+  if (screen === 'gallery' && galleryLoading) {
+    return (
+      <div className="gallery gallery--skeleton">
+        <div className="gallery__hero">
+          <div className="g-skel g-skel--hero-bg" />
+          <button onClick={onGoBack} className="gallery__hero-back" style={{ zIndex: 2 }}>‹</button>
+          <div className="gallery__hero-info">
+            <div className="g-skel g-skel--date-pill" />
+            <div className="g-skel g-skel--artist" />
+            <div className="g-skel g-skel--venue" />
+          </div>
+        </div>
+
+        <div className="gallery__stats">
+          {[0, 1, 2].map(i => (
+            <React.Fragment key={i}>
+              <div className="gallery__stat">
+                <div className="g-skel g-skel--stat-val" />
+                <div className="g-skel g-skel--stat-lbl" />
+              </div>
+              {i < 2 && <div className="gallery__stat-divider" />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="gallery__attendees">
+          <div className="g-skel g-skel--avatar-stack" />
+          <div className="g-skel g-skel--attendee-text" />
+        </div>
+
+        <div className="gallery__add-wrap">
+          <div className="g-skel g-skel--add-btn" />
+        </div>
+
+        <div className="gallery__grid">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="gallery__grid-item">
+              <div className="g-skel g-skel--tile" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (screen === 'gallery' && gallery) {
     return (
       <div className="gallery">
@@ -21,7 +68,16 @@ export default function ConcertContainer({
           <div className="gallery__hero-info">
             <div className="gallery__date-pill">{gallery.month} {gallery.year}</div>
             <div className="gallery__artist">{gallery.artist}</div>
-            <div className="gallery__venue">{gallery.venue + ' · ' + gallery.city}</div>
+            <div className="gallery__venue-row">
+              <span className="gallery__venue">{gallery.venue + ' · ' + gallery.city}</span>
+              <button
+                className="gallery__copy-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  onFlash?.('Link copied!');
+                }}
+              >Copy link</button>
+            </div>
           </div>
         </div>
 
@@ -146,9 +202,9 @@ export default function ConcertContainer({
 
         <div className="create__form">
           {[
-            { label: 'ARTIST NAME', key: 'artist', handler: onSetArtist, placeholder: 'e.g. Beach House' },
-            { label: 'VENUE',       key: 'venue',  handler: onSetVenue,  placeholder: 'e.g. The Fillmore' },
-            { label: 'CITY',        key: 'city',   handler: onSetCity,   placeholder: 'e.g. San Francisco' },
+            { label: 'ARTIST NAME', key: 'artist', handler: onSetArtist, placeholder: 'e.g. Kendrick Lamar' },
+            { label: 'VENUE',       key: 'venue',  handler: onSetVenue,  placeholder: 'e.g. Kia Forum' },
+            { label: 'CITY',        key: 'city',   handler: onSetCity,   placeholder: 'e.g. Inglewood, CA' },
           ].map(({ label, key, handler, placeholder }) => (
             <div key={key}>
               <label className="create__form-label">{label}</label>

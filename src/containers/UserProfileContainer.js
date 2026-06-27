@@ -22,7 +22,7 @@ const FONTS = [
 
 export default function UserProfileContainer({
   screen,
-  user, profile, galleries, isOwn = true, slide,
+  user, profile, profileLoading = false, galleries, isOwn = true, slide,
   followStatus, followerCount, followingCount,
   usernameStatus, storedUsername,
   editLoading, avatarUploading, bannerUploading,
@@ -40,6 +40,52 @@ export default function UserProfileContainer({
   });
   const fi     = favs.length ? slide % favs.length : 0;
   const curFav = favs[fi];
+
+  if (screen === 'profile' && profileLoading) {
+    return (
+      <div className="profile profile--skeleton">
+        <div className="profile__banner">
+          <div className="skel skel--banner" />
+        </div>
+        <div className="profile__body">
+          <div className="skel skel--avatar" />
+          <div className="profile__identity-row" style={{ marginTop: 14 }}>
+            <div style={{ flex: 1 }}>
+              <div className="skel skel--name" />
+              <div className="skel skel--handle" />
+            </div>
+          </div>
+          <div className="skel skel--bio" />
+          <div className="skel skel--bio skel--bio-short" />
+          <div className="profile__stats" style={{ marginTop: 18 }}>
+            <div className="skel skel--stat" />
+            <div className="skel skel--stat" />
+            <div className="skel skel--stat" />
+          </div>
+        </div>
+        <div className="profile__featured-header">
+          <div className="skel skel--section-title" />
+        </div>
+        <div className="profile__featured-card-wrap">
+          <div className="skel skel--featured-card" />
+        </div>
+        <div style={{ padding: '28px 22px 8px' }}>
+          <div className="skel skel--section-title" />
+        </div>
+        <div className="profile__concerts-list">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="concert-row" style={{ cursor: 'default' }}>
+              <div className="skel skel--concert-thumb" />
+              <div style={{ flex: 1 }}>
+                <div className="skel skel--concert-artist" />
+                <div className="skel skel--concert-meta" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (screen === 'profile') {
     return (
@@ -66,13 +112,11 @@ export default function UserProfileContainer({
                 className="profile__name"
                 style={profile.nameFont ? { fontFamily: `'${profile.nameFont}', serif` } : undefined}
               >
-                {profile.name || user?.displayName || 'Your Profile'}
+                {profile.name || 'Your Profile'}
               </div>
               <div className="profile__handle-row">
                 <span className="profile__handle">
-                  {profile.username
-                    ? `@${profile.username}`
-                    : '@' + (profile.name || user?.displayName || '').toLowerCase().replace(/\s+/g, '.')}
+                  {profile.username ? `@${profile.username}` : ''}
                 </span>
                 {profile.username && (
                   <button

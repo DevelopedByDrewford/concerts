@@ -45,11 +45,13 @@ class App extends React.Component {
     searchQuery:       '',
     searchResults:     null,
     searchLoading:     false,
-    duplicateGallery:  null,
-    createLoading:     false,
-    userGalleries:     [],
-    galleryItems:      {},   // { [galleryId]: ItemDoc[] }
-    uploads:           {},   // { [fileId]: upload descriptor }
+    duplicateGallery:     null,
+    createLoading:        false,
+    userGalleries:        [],
+    galleryItems:         {},   // { [galleryId]: ItemDoc[] }
+    uploads:              {},   // { [fileId]: upload descriptor }
+    publicProfileLoading: false,
+    galleryLoading:       false,
   };
 
   _storedUsername = '';
@@ -101,20 +103,26 @@ class App extends React.Component {
         const handle    = isLegacy ? '' : rawStored;
         this._storedUsername = handle;
         const userGalleries = rawDocs.map(d => this._firestoreGalleryToLocal(d));
+        let galleryNotFound = false;
         if (this._pendingGalleryPath) {
           const path = this._pendingGalleryPath;
           this._pendingGalleryPath = null;
           const allG = [...userGalleries, ...this.state.galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
           const found = allG.find(g => this._galleryPath(g) === path);
           if (found) {
-            this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, lb: null });
+            this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, galleryLoading: false, lb: null });
+            loadGalleryItems(found.id)
+              .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items } })))
+              .catch(() => {});
             return;
           }
           window.history.replaceState(null, '', '/');
+          galleryNotFound = true;
         }
         this.setState(s => ({
           user,
           userGalleries,
+          ...(galleryNotFound ? { screen: 'home', galleryLoading: false } : {}),
           profile: {
             name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
             username:     handle,
@@ -161,6 +169,8 @@ class App extends React.Component {
   _loadFromUrl(path) {
     const profileMatch = path.match(/^\/@([a-z0-9._]{3,20})$/i);
     if (profileMatch) {
+      // Show profile screen immediately with skeleton while Firestore fetch runs.
+      this.setState({ screen: 'profile', publicUid: null, publicProfile: null, publicProfileLoading: true, lb: null });
       this._openUsernameProfile(profileMatch[1].toLowerCase());
       return;
     }
@@ -171,8 +181,9 @@ class App extends React.Component {
         this.setState({ screen: 'gallery', activeId: found.id, lb: null });
         return;
       }
-      // Galleries not loaded yet (auth still resolving) — store and retry after mount
+      // Galleries not loaded yet — show skeleton immediately, retry after auth resolves.
       this._pendingGalleryPath = path;
+      this.setState({ screen: 'gallery', activeId: null, galleryLoading: true, lb: null });
       return;
     }
     if (path !== '/') window.history.replaceState(null, '', '/');
@@ -189,10 +200,11 @@ class App extends React.Component {
         return this._openUsernameProfile(data.redirectTo);
       }
       this.setState({
-        screen:        'profile',
-        lb:            null,
-        slide:         0,
-        publicUid:     data.uid,
+        screen:               'profile',
+        lb:                   null,
+        slide:                0,
+        publicUid:            data.uid,
+        publicProfileLoading: false,
         publicProfile: {
           name:         data.name         || '',
           username:     data.username     || username,
@@ -207,6 +219,7 @@ class App extends React.Component {
       }, () => this._loadFollowData(data.uid));
     } catch {
       window.history.replaceState(null, '', '/');
+      this.setState({ publicProfileLoading: false });
     }
   };
 
@@ -664,7 +677,7 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads, publicProfileLoading, galleryLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -673,7 +686,9 @@ class App extends React.Component {
     const isSearch      = screen === 'search';
 
     const isOwnProfile   = !publicUid || publicUid === user?.uid;
-    const displayProfile = (!isOwnProfile && publicProfile) ? publicProfile : profile;
+    // Prefer publicProfile (always fresh from Firestore) over profile (may have
+    // Google-data fallbacks from onAuthStateChanged if stored doc was momentarily unavailable).
+    const displayProfile = publicProfile || profile;
 
     const allGalleries = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
     const ag = allGalleries.find(g => g.id === activeId);
@@ -735,6 +750,7 @@ class App extends React.Component {
           <ConcertContainer
             screen={screen}
             gallery={ag}
+            galleryLoading={galleryLoading}
             curMedia={curMedia}
             create={create}
             onGoBack={this.goBack}
@@ -751,6 +767,7 @@ class App extends React.Component {
             duplicateGallery={duplicateGallery}
             onCloseDuplicate={this.closeDuplicateModal}
             onOpenDuplicateGallery={this.openGallery}
+            onFlash={this.flash}
           />
         )}
 
@@ -759,6 +776,7 @@ class App extends React.Component {
             screen={screen}
             user={user}
             profile={displayProfile}
+            profileLoading={publicProfileLoading}
             galleries={isOwnProfile ? userGalleries : []}
             isOwn={isOwnProfile}
             slide={slide}
