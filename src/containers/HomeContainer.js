@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './HomeContainer.css';
 import { coverStr, avStr } from '../utils/colorHelpers';
 
-export default function HomeContainer({ galleries, user, profile, onOpenGallery, onGoProfile, onSearch }) {
+export default function HomeContainer({ galleries, galleriesLoading = false, user, profile, onOpenGallery, onGoProfile, onSearch }) {
   const [query, setQuery] = useState('');
   const avatarSrc = profile.avatarUrl || user?.photoURL || null;
 
@@ -12,42 +12,70 @@ export default function HomeContainer({ galleries, user, profile, onOpenGallery,
     if (q) onSearch(q);
   };
 
+  const header = (
+    <div className="home__header">
+      <div className="home__wordmark">
+        <span className="home__wordmark-title">Encore</span>
+        <div className="home__dot" />
+      </div>
+      <div onClick={onGoProfile} className="home__avatar profile-btn">
+        {avatarSrc
+          ? <img src={avatarSrc} alt="" />
+          : <div className="home__avatar-placeholder" />
+        }
+      </div>
+    </div>
+  );
+
+  const searchBar = (
+    <form className="home__search" onSubmit={handleSubmit}>
+      <div className="home__search-inner">
+        <div className="home__search-icon" />
+        <input
+          type="search"
+          className="home__search-input"
+          placeholder="Search artists, venues, cities…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          enterKeyHint="search"
+        />
+      </div>
+    </form>
+  );
+
+  const tabs = (
+    <div className="home__tabs">
+      <div className="home__tab--active">For you</div>
+      {['This month', 'Near you', 'Following'].map(tab => (
+        <div key={tab} className="home__tab">{tab}</div>
+      ))}
+    </div>
+  );
+
+  if (galleriesLoading) {
+    return (
+      <div className="home">
+        {header}
+        {searchBar}
+        {tabs}
+        <div className="home__featured">
+          <div className="home-skel home-skel--featured" />
+        </div>
+        <div className="home__section-title">Recent galleries</div>
+        <div className="home__feed">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="home-skel home-skel--feed" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="home">
-
-      <div className="home__header">
-        <div className="home__wordmark">
-          <span className="home__wordmark-title">Encore</span>
-          <div className="home__dot" />
-        </div>
-        <div onClick={onGoProfile} className="home__avatar profile-btn">
-          {avatarSrc
-            ? <img src={avatarSrc} alt="" />
-            : <div className="home__avatar-placeholder" />
-          }
-        </div>
-      </div>
-
-      <form className="home__search" onSubmit={handleSubmit}>
-        <div className="home__search-inner">
-          <div className="home__search-icon" />
-          <input
-            type="search"
-            className="home__search-input"
-            placeholder="Search artists, venues, cities…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            enterKeyHint="search"
-          />
-        </div>
-      </form>
-
-      <div className="home__tabs">
-        <div className="home__tab--active">For you</div>
-        {['This month', 'Near you', 'Following'].map(tab => (
-          <div key={tab} className="home__tab">{tab}</div>
-        ))}
-      </div>
+      {header}
+      {searchBar}
+      {tabs}
 
       {galleries.length > 0 && (() => {
         const g   = galleries[0];

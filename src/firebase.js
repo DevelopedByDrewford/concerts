@@ -166,6 +166,11 @@ export async function getUserGalleries(uid) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+export async function loadAllGalleries() {
+  const snap = await getDocs(collection(db, 'galleries'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 export async function searchGalleries(term) {
   const q = term.toLowerCase().trim();
   const snap = await getDocs(query(collection(db, 'galleries'), limit(200)));

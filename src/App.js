@@ -1,9 +1,8 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover, loadAllGalleries } from './firebase';
 import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
-import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
 import ConcertContainer     from './containers/ConcertContainer';
 import UserProfileContainer from './containers/UserProfileContainer';
@@ -23,7 +22,8 @@ class App extends React.Component {
     deleted:         {},
     extra:           {},
     toast:           '',
-    galleries:       INITIAL_GALLERIES,
+    galleries:       [],
+    galleriesLoading: true,
     create:          { artist: '', venue: '', city: '', month: 'Sep', year: '2025' },
     user:            null,
     loginModal:      false,
@@ -81,6 +81,7 @@ class App extends React.Component {
       id: doc.id, artist: doc.artistName || '', venue: doc.venue || '',
       city: doc.city || '', month, year, h1, h2,
       coverUrl: doc.coverUrl || null,
+      createdAt: doc.createdAt?.toMillis?.() || 0,
       media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
     };
   }
@@ -134,6 +135,15 @@ class App extends React.Component {
     this._iv = setInterval(() => {
       if (this.state.screen === 'profile') this.setState(s => ({ slide: s.slide + 1 }));
     }, 4500);
+
+    loadAllGalleries()
+      .then(docs => {
+        const galleries = docs
+          .map(d => this._firestoreGalleryToLocal(d))
+          .sort((a, b) => b.createdAt - a.createdAt);
+        this.setState({ galleries, galleriesLoading: false });
+      })
+      .catch(() => this.setState({ galleriesLoading: false }));
 
     window.addEventListener('popstate', this._handlePopState);
     this._loadFromUrl(window.location.pathname);
@@ -730,6 +740,7 @@ class App extends React.Component {
         month: create.month, year: create.year,
         h1: 5, h2: 290,
         coverUrl: null,
+        createdAt: Date.now(),
         media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
       };
       this._fromUrl = '/';
@@ -755,7 +766,7 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads, publicProfileLoading, galleryLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, galleriesLoading, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads, publicProfileLoading, galleryLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -769,6 +780,7 @@ class App extends React.Component {
     const displayProfile = publicProfile || profile;
 
     const allGalleries = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
+    const homeGalleries = [...allGalleries].sort((a, b) => b.createdAt - a.createdAt);
     const ag = allGalleries.find(g => g.id === activeId);
 
     const realItems = ag
@@ -805,7 +817,8 @@ class App extends React.Component {
 
         {isHome && (
           <HomeContainer
-            galleries={galleries}
+            galleries={homeGalleries}
+            galleriesLoading={galleriesLoading}
             user={user}
             profile={profile}
             onOpenGallery={this.openGallery}

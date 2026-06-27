@@ -1,3 +1,31 @@
+@keyframes home-skel-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.home-skel {
+  background: linear-gradient(
+    90deg,
+    oklch(0.18 0.01 285) 0%,
+    oklch(0.28 0.015 285) 50%,
+    oklch(0.18 0.01 285) 100%
+  );
+  background-size: 200% 100%;
+  animation: home-skel-shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--r-xl);
+}
+
+.home-skel--featured {
+  aspect-ratio: 4/5;
+  border-radius: var(--r-2xl);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.5);
+}
+
+.home-skel--feed {
+  aspect-ratio: 16/11;
+  margin-bottom: 16px;
+}
+
 .home {
   position: relative;
   z-index: 1;
