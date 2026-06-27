@@ -1,9 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './HomeContainer.css';
 import { coverStr, avStr } from '../utils/colorHelpers';
 
-export default function HomeContainer({ galleries, user, profile, onOpenGallery, onGoProfile }) {
+export default function HomeContainer({ galleries, user, profile, onOpenGallery, onGoProfile, onSearch }) {
+  const [query, setQuery] = useState('');
   const avatarSrc = profile.avatarUrl || user?.photoURL || null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (q) onSearch(q);
+  };
 
   return (
     <div className="home">
@@ -21,12 +28,19 @@ export default function HomeContainer({ galleries, user, profile, onOpenGallery,
         </div>
       </div>
 
-      <div className="home__search">
+      <form className="home__search" onSubmit={handleSubmit}>
         <div className="home__search-inner">
           <div className="home__search-icon" />
-          <span className="home__search-text">Search artists, venues, cities…</span>
+          <input
+            type="search"
+            className="home__search-input"
+            placeholder="Search artists, venues, cities…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            enterKeyHint="search"
+          />
         </div>
-      </div>
+      </form>
 
       <div className="home__tabs">
         <div className="home__tab--active">For you</div>

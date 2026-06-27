@@ -93,9 +93,23 @@
   transform: rotate(45deg);
 }
 
-.home__search-text {
-  color: oklch(0.62 0.01 285);
+.home__search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--c-text);
   font-size: 14.5px;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.home__search-input::placeholder {
+  color: oklch(0.62 0.01 285);
+}
+
+.home__search-input::-webkit-search-cancel-button {
+  display: none;
 }
 
 /* tabs */

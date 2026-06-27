@@ -1,12 +1,13 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
 import ConcertContainer     from './containers/ConcertContainer';
 import UserProfileContainer from './containers/UserProfileContainer';
-import FollowListContainer  from './containers/FollowListContainer';
+import FollowListContainer      from './containers/FollowListContainer';
+import SearchResultsContainer  from './containers/SearchResultsContainer';
 import Lightbox   from './components/Lightbox';
 import LoginModal from './components/LoginModal';
 import Toast      from './components/Toast';
@@ -40,6 +41,9 @@ class App extends React.Component {
     followListType:    null,   // 'followers' | 'following'
     followList:        [],
     followListLoading: false,
+    searchQuery:       '',
+    searchResults:     null,
+    searchLoading:     false,
   };
 
   _storedUsername = '';
@@ -231,6 +235,48 @@ class App extends React.Component {
   };
 
   closeFollowList = () => this.setState({ screen: 'profile' });
+
+  // ── search ────────────────────────────────────────────────────────────────────
+  handleSearch = async (rawQuery) => {
+    const q = rawQuery.trim();
+    if (!q) return;
+    this.setState({ screen: 'search', searchQuery: q, searchLoading: true, searchResults: null });
+    try {
+      const users = await searchUsers(q);
+      const lower = q.toLowerCase();
+      const { galleries } = this.state;
+
+      const artistMap = {}, cityMap = {}, venueMap = {};
+      galleries.forEach(g => {
+        if ((g.artist || '').toLowerCase().includes(lower)) {
+          artistMap[g.artist] = (artistMap[g.artist] || 0) + 1;
+        }
+        if ((g.city || '').toLowerCase().includes(lower)) {
+          cityMap[g.city] = (cityMap[g.city] || 0) + 1;
+        }
+        if ((g.venue || '').toLowerCase().includes(lower)) {
+          const key = `${g.venue}||${g.city}`;
+          if (!venueMap[key]) venueMap[key] = { venue: g.venue, city: g.city, count: 0 };
+          venueMap[key].count++;
+        }
+      });
+
+      this.setState({
+        searchLoading: false,
+        searchResults: {
+          users,
+          artists: Object.entries(artistMap).map(([artist, count]) => ({ artist, count })),
+          cities:  Object.entries(cityMap).map(([city, count]) => ({ city, count })),
+          venues:  Object.values(venueMap),
+        },
+      });
+    } catch {
+      this.setState({ searchLoading: false, searchResults: { users: [], artists: [], cities: [], venues: [] } });
+      this.flash('Search failed — try again');
+    }
+  };
+
+  goBackFromSearch = () => this.setState({ screen: 'home', searchQuery: '', searchResults: null });
 
   openProfileFromList = (username) => {
     if (!username) return;
@@ -443,12 +489,13 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
     const isUserProfile = screen === 'profile'  || screen === 'editProfile';
     const isFollowList  = screen === 'followList';
+    const isSearch      = screen === 'search';
 
     const isOwnProfile   = !publicUid || publicUid === user?.uid;
     const displayProfile = (!isOwnProfile && publicProfile) ? publicProfile : profile;
@@ -471,6 +518,17 @@ class App extends React.Component {
             profile={profile}
             onOpenGallery={this.openGallery}
             onGoProfile={this.goProfile}
+            onSearch={this.handleSearch}
+          />
+        )}
+
+        {isSearch && (
+          <SearchResultsContainer
+            query={searchQuery}
+            results={searchResults}
+            loading={searchLoading}
+            onBack={this.goBackFromSearch}
+            onOpenProfile={this._openUsernameProfile}
           />
         )}
 

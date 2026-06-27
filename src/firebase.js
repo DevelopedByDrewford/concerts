@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -115,6 +115,20 @@ export async function getFollowersList(uid) {
 export async function getFollowingList(uid) {
   const snap = await getDocs(query(collection(db, 'follows'), where('followerId', '==', uid)));
   return _fetchProfiles(snap.docs.map(d => d.data().followedId));
+}
+
+// ── search ────────────────────────────────────────────────────────────────────
+
+export async function searchUsers(term) {
+  const q = term.toLowerCase().trim();
+  // Fetch a capped set and filter client-side — Firestore has no substring query
+  const snap = await getDocs(query(collection(db, 'users'), limit(200)));
+  return snap.docs
+    .map(d => ({ uid: d.id, ...d.data() }))
+    .filter(u =>
+      (u.name     || '').toLowerCase().includes(q) ||
+      (u.username || '').toLowerCase().includes(q)
+    );
 }
 
 // ── username lookup ───────────────────────────────────────────────────────────

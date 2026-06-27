@@ -2,7 +2,7 @@ import React from 'react';
 import './NavBar.css';
 
 export default function NavBar({ screen, onHome, onCreate, onProfile }) {
-  const isHome    = screen === 'home';
+  const isHome    = screen === 'home' || screen === 'search';
   const isProfile = screen === 'profile' || screen === 'editProfile' || screen === 'followList';
 
   return (
