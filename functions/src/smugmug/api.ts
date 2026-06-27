@@ -409,9 +409,9 @@ export async function uploadMedia(
   // imageKey is the last path segment, e.g. "AbCdEf-0" from "/api/v2/image/AbCdEf-0"
   const imageKey = imageUri.split("/").pop()!;
 
-  const { displayUrl, thumbnailUrl } = await getImageUrls(config, imageUri);
+  const { displayUrl, thumbnailUrl, videoUrl } = await getImageUrls(config, imageUri);
 
-  return { imageKey, imageUri, displayUrl, thumbnailUrl };
+  return { imageKey, imageUri, displayUrl, thumbnailUrl, ...(videoUrl ? { videoUrl } : {}) };
 }
 
 // ── delete ────────────────────────────────────────────────────────────────────

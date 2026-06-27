@@ -184,6 +184,9 @@ export const processUpload = onObjectFinalized(
     const fileId = dotIdx > 0 ? fileIdWithExt.slice(0, dotIdx) : fileIdWithExt;
     const fileName = fileIdWithExt;
 
+    // Compute backup path here so we can reference it before step 9.
+    const backupPath = path.replace(/^staging\//, "backup/");
+
     logger.info("Processing upload", { uid, galleryId, fileId, path });
 
     // ── 2. Server-side validation ──────────────────────────────────────────
@@ -257,6 +260,16 @@ export const processUpload = onObjectFinalized(
       const itemRef = itemsCollection(galleryId).doc(); // auto-ID
       const itemId  = itemRef.id;
 
+      // For video files, prefer a Firebase Storage download URL over SmugMug's
+      // LargestVideo URL. The download token is set by the client SDK on upload
+      // and is preserved when the file is moved to backup/. This URL works
+      // immediately without waiting for SmugMug video transcoding to finish.
+      const downloadToken = (obj.metadata as Record<string, string> | undefined)
+        ?.firebaseStorageDownloadTokens;
+      const storageVideoUrl = (mediaType === "video" && downloadToken && keepBackup())
+        ? `https://firebasestorage.googleapis.com/v0/b/${obj.bucket}/o/${encodeURIComponent(backupPath)}?alt=media&token=${downloadToken}`
+        : null;
+
       const itemDoc = {
         uploaderUid:     uid,
         type:            mediaType,
@@ -264,7 +277,7 @@ export const processUpload = onObjectFinalized(
         smugmugImageUri: uploadResult.imageUri,
         displayUrl:      uploadResult.displayUrl,
         thumbnailUrl:    uploadResult.thumbnailUrl,
-        videoUrl:        uploadResult.videoUrl ?? null,
+        videoUrl:        storageVideoUrl ?? uploadResult.videoUrl ?? null,
         caption:         null,
         uploadedAt:      Timestamp.now(),
       };
@@ -302,7 +315,7 @@ export const processUpload = onObjectFinalized(
       // ── 9. Stage-file cleanup ──────────────────────────────────────────
       if (keepBackup()) {
         // Move to /backup/ instead of deleting (preserves original for safety).
-        const backupPath = path.replace(/^staging\//, "backup/");
+        // backupPath was computed at the top so we could use the token URL above.
         await bucket.file(path).move(backupPath);
         logger.info("Staging file moved to backup", { backupPath });
       } else {
