@@ -27,7 +27,7 @@ class App extends React.Component {
     loginModal:      false,
     loginLoading:    false,
     loginError:      null,
-    profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null, bannerUrl: null },
+    profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null, bannerUrl: null, nameFont: '' },
     editLoading:     false,
     avatarUploading:  false,
     bannerUploading:  false,
@@ -71,6 +71,7 @@ class App extends React.Component {
             websiteLabel: stored?.websiteLabel  || '',
             avatarUrl:    stored?.profilePhotoUrl || null,
             bannerUrl:    stored?.bannerUrl        || null,
+            nameFont:     stored?.nameFont         || '',
           },
           // On WKWebView (Chrome/Brave iOS), signInWithPopup opens a new tab instead of
           // a true popup — window.opener is null so Firebase can't postMessage the result
@@ -137,6 +138,7 @@ class App extends React.Component {
           websiteLabel: data.websiteLabel || '',
           avatarUrl:    data.profilePhotoUrl || null,
           bannerUrl:    data.bannerUrl        || null,
+          nameFont:     data.nameFont         || '',
         },
       }, () => this._loadFollowData(data.uid));
     } catch {
@@ -344,6 +346,7 @@ class App extends React.Component {
         websiteLabel:    profile.websiteLabel,
         profilePhotoUrl: profile.avatarUrl || null,
         bannerUrl:       profile.bannerUrl  || null,
+        nameFont:        profile.nameFont   || null,
       });
       const finalUsername = profile.username || this._storedUsername;
       this._pushUrl(finalUsername ? `/@${finalUsername}` : '/');

@@ -2,6 +2,18 @@ import React from 'react';
 import './UserProfileContainer.css';
 import { coverStr, avStr } from '../utils/colorHelpers';
 
+const FONTS = [
+  { value: '',               family: 'Instrument Serif' },
+  { value: 'Unica One',      family: 'Unica One' },
+  { value: 'Asimovian',      family: 'Asimovian' },
+  { value: 'Lavishly Yours', family: 'Lavishly Yours' },
+  { value: 'Mystery Quest',  family: 'Mystery Quest' },
+  { value: 'Marck Script',   family: 'Marck Script' },
+  { value: 'Felipa',         family: 'Felipa' },
+  { value: 'Special Elite',  family: 'Special Elite' },
+  { value: 'Irish Grover',   family: 'Irish Grover' },
+];
+
 export default function UserProfileContainer({
   screen,
   user, profile, galleries, isOwn = true, slide,
@@ -33,7 +45,10 @@ export default function UserProfileContainer({
             : <div className="profile__banner-cover" style={{ background: coverStr(330, 285) }} />
           }
           <div className="profile__banner-scrim" />
-          <button onClick={onGoBack} className="profile__banner-back">‹</button>
+          {/* <button onClick={onGoBack} className="profile__banner-back">‹</button> */}
+          <button className="profile__banner-back" onClick={() => window.history.back()}>
+            ‹
+          </button>
         </div>
 
         <div className="profile__body">
@@ -43,7 +58,12 @@ export default function UserProfileContainer({
 
           <div className="profile__identity-row">
             <div>
-              <div className="profile__name">{profile.name || user?.displayName || 'Your Profile'}</div>
+              <div
+                className="profile__name"
+                style={profile.nameFont ? { fontFamily: `'${profile.nameFont}', serif` } : undefined}
+              >
+                {profile.name || user?.displayName || 'Your Profile'}
+              </div>
               <div className="profile__handle-row">
                 <span className="profile__handle">
                   {profile.username
@@ -206,15 +226,32 @@ export default function UserProfileContainer({
         </div>
 
         <div className="edit-profile__fields">
-          {[
-            { label: 'NAME',     key: 'name',     type: 'text', placeholder: 'Your display name' },
-            { label: 'LOCATION', key: 'location', type: 'text', placeholder: 'e.g. Austin, TX' },
-          ].map(({ label, key, type, placeholder }) => (
-            <div key={key}>
-              <label className="field-label">{label}</label>
-              <input type={type} value={profile[key]} onChange={onSetProfileField(key)} placeholder={placeholder} className="field-input" />
+          <div>
+            <label className="field-label">NAME</label>
+            <input type="text" value={profile.name} onChange={onSetProfileField('name')} placeholder="Your display name" className="field-input" />
+          </div>
+
+          <div>
+            <label className="field-label">NAME FONT</label>
+            <div className="font-picker">
+              {FONTS.map(f => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => onSetProfileField('nameFont')({ target: { value: f.value } })}
+                  className={`font-picker__option${profile.nameFont === f.value ? ' font-picker__option--active' : ''}`}
+                  style={{ fontFamily: `'${f.family}', serif` }}
+                >
+                  {profile.name || 'Your Name'}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div>
+            <label className="field-label">LOCATION</label>
+            <input type="text" value={profile.location} onChange={onSetProfileField('location')} placeholder="e.g. Austin, TX" className="field-input" />
+          </div>
 
           <div>
             <label className="field-label">USERNAME</label>

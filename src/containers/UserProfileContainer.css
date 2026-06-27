@@ -495,6 +495,35 @@
   gap: 18px;
 }
 
+/* ── font picker ────────────────────────────────────────────────────────────── */
+.font-picker {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.font-picker__option {
+  padding: 14px 10px;
+  border-radius: 12px;
+  background: oklch(0.14 0.012 285);
+  border: 1.5px solid oklch(0.22 0.015 285);
+  cursor: pointer;
+  font-size: 22px;
+  color: var(--c-text);
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.font-picker__option--active {
+  border-color: var(--c-accent, oklch(0.72 0.19 280));
+  background: oklch(0.17 0.018 285);
+}
+
 /* username field */
 .username-field {
   position: relative;
