@@ -7,9 +7,9 @@ export default function UserProfileContainer({
   user, profile, galleries, isOwn = true, slide,
   followStatus, followerCount, followingCount,
   usernameStatus, storedUsername,
-  editLoading, avatarUploading,
+  editLoading, avatarUploading, bannerUploading,
   onGoBack, onGoEditProfile, onSetScreen, onSignOut,
-  onSetProfileField, onUsernameChange, onAvatarChange, onSaveProfile,
+  onSetProfileField, onUsernameChange, onAvatarChange, onBannerChange, onSaveProfile,
   onFollow, onUnfollow, onOpenFollowList,
   onFlash,
 }) {
@@ -28,7 +28,10 @@ export default function UserProfileContainer({
       <div className="profile">
 
         <div className="profile__banner">
-          <div className="profile__banner-cover" style={{ background: coverStr(330, 285) }} />
+          {profile.bannerUrl
+            ? <img src={profile.bannerUrl} alt="" className="profile__banner-img" />
+            : <div className="profile__banner-cover" style={{ background: coverStr(330, 285) }} />
+          }
           <div className="profile__banner-scrim" />
           <button onClick={onGoBack} className="profile__banner-back">‹</button>
         </div>
@@ -159,6 +162,27 @@ export default function UserProfileContainer({
           <button onClick={() => onSetScreen('profile')} className="btn-back">‹</button>
           <span className="edit-profile__title">Edit profile</span>
           <div className="edit-profile__header-spacer" />
+        </div>
+
+        <div className="edit-profile__banner-section">
+          <div
+            className="edit-profile__banner-preview"
+            style={profile.bannerUrl ? undefined : { background: coverStr(330, 285) }}
+          >
+            {profile.bannerUrl && <img src={profile.bannerUrl} alt="" className="edit-profile__banner-img" />}
+            {bannerUploading && (
+              <div className="edit-profile__banner-overlay">
+                <div className="spinner" style={{ width: '24px', height: '24px', border: '2px solid oklch(1 0 0/0.3)', borderTopColor: '#fff' }} />
+              </div>
+            )}
+            <label className="edit-profile__banner-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <input type="file" accept="image/*" onChange={onBannerChange} style={{ display: 'none' }} />
+            </label>
+          </div>
         </div>
 
         <div className="edit-profile__avatar-wrap">

@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
 import HomeContainer        from './containers/HomeContainer';
@@ -27,9 +27,10 @@ class App extends React.Component {
     loginModal:      false,
     loginLoading:    false,
     loginError:      null,
-    profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null },
+    profile:         { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null, bannerUrl: null },
     editLoading:     false,
-    avatarUploading: false,
+    avatarUploading:  false,
+    bannerUploading:  false,
     usernameStatus:  'idle',
     publicUid:         null,
     publicProfile:     null,
@@ -69,6 +70,7 @@ class App extends React.Component {
             website:      stored?.website       || '',
             websiteLabel: stored?.websiteLabel  || '',
             avatarUrl:    stored?.profilePhotoUrl || null,
+            bannerUrl:    stored?.bannerUrl        || null,
           },
           // On WKWebView (Chrome/Brave iOS), signInWithPopup opens a new tab instead of
           // a true popup — window.opener is null so Firebase can't postMessage the result
@@ -134,6 +136,7 @@ class App extends React.Component {
           website:      data.website      || '',
           websiteLabel: data.websiteLabel || '',
           avatarUrl:    data.profilePhotoUrl || null,
+          bannerUrl:    data.bannerUrl        || null,
         },
       }, () => this._loadFollowData(data.uid));
     } catch {
@@ -306,6 +309,19 @@ class App extends React.Component {
     }
   };
 
+  handleBannerChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !this.state.user) return;
+    this.setState({ bannerUploading: true });
+    try {
+      const url = await uploadBanner(this.state.user.uid, file);
+      this.setState(s => ({ profile: { ...s.profile, bannerUrl: url }, bannerUploading: false }));
+    } catch {
+      this.setState({ bannerUploading: false });
+      this.flash('Banner upload failed');
+    }
+  };
+
   saveProfile = async () => {
     const { user, profile, usernameStatus } = this.state;
     if (!user) return;
@@ -327,6 +343,7 @@ class App extends React.Component {
         website:         profile.website,
         websiteLabel:    profile.websiteLabel,
         profilePhotoUrl: profile.avatarUrl || null,
+        bannerUrl:       profile.bannerUrl  || null,
       });
       const finalUsername = profile.username || this._storedUsername;
       this._pushUrl(finalUsername ? `/@${finalUsername}` : '/');
@@ -423,7 +440,7 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -488,6 +505,7 @@ class App extends React.Component {
             storedUsername={this._storedUsername}
             editLoading={editLoading}
             avatarUploading={avatarUploading}
+            bannerUploading={bannerUploading}
             onGoBack={this.openGallery}
             onGoEditProfile={this.goEditProfile}
             onSetScreen={this.setScreen}
@@ -495,6 +513,7 @@ class App extends React.Component {
             onSetProfileField={this.setProfileField}
             onUsernameChange={this.handleUsernameChange}
             onAvatarChange={this.handleAvatarChange}
+            onBannerChange={this.handleBannerChange}
             onSaveProfile={this.saveProfile}
             onFollow={this.handleFollow}
             onUnfollow={this.handleUnfollow}

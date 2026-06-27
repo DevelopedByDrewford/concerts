@@ -45,6 +45,12 @@ export async function uploadAvatar(uid, file) {
   return getDownloadURL(avatarRef);
 }
 
+export async function uploadBanner(uid, file) {
+  const bannerRef = ref(storage, `banners/${uid}`);
+  await uploadBytes(bannerRef, file, { contentType: file.type });
+  return getDownloadURL(bannerRef);
+}
+
 /** Returns true if the username is unclaimed (or already owned by uid). */
 export async function checkUsernameAvailable(username, uid) {
   const snap = await getDoc(doc(db, "usernames", username));
