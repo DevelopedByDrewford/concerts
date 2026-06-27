@@ -506,6 +506,7 @@ class App extends React.Component {
   openProfileFromList = (username) => {
     if (!username) return;
     this._pushUrl(`/@${username}`);
+    this.setState({ screen: 'profile', publicUid: null, publicProfile: null, publicProfileLoading: true, lb: null });
     this._openUsernameProfile(username);
   };
 
