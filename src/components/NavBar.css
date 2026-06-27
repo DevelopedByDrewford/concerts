@@ -57,11 +57,11 @@
 .nav-btn__icon--home-roof {
   position: absolute;
   top: 0;
-  left: 1px;
+  left: -2.25px;
   width: 0;
   height: 0;
-  border-left: 9px solid transparent;
-  border-right: 9px solid transparent;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
   border-bottom: 8px solid currentColor;
 }
 

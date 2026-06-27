@@ -184,6 +184,33 @@
   color: oklch(0.74 0.01 285);
 }
 
+/* I Was There */
+.gallery__attend-wrap {
+  padding: 10px 22px 2px;
+}
+
+.gallery__attend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 20px;
+  border-radius: var(--r-full);
+  border: 1.5px solid oklch(1 0 0 / 0.18);
+  background: oklch(0.18 0.014 285 / 0.6);
+  backdrop-filter: blur(6px);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--c-text);
+  cursor: pointer;
+  letter-spacing: 0.2px;
+}
+
+.gallery__attend-btn--on {
+  border-color: oklch(0.72 0.18 145 / 0.5);
+  background: oklch(0.22 0.06 145 / 0.5);
+  color: oklch(0.82 0.14 145);
+}
+
 /* gallery details */
 .gallery__details {
   padding: 14px 22px 6px;

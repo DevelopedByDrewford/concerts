@@ -180,6 +180,19 @@ export async function getGalleryCoverItem(galleryId) {
   return { id: d.id, ...d.data() };
 }
 
+export async function loadGalleryStats(galleryId) {
+  const snap = await getDocs(collection(db, 'galleries', galleryId, 'items'));
+  const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const photos = items.filter(i => i.type === 'image');
+  const uids = new Set(items.map(i => i.uploaderUid).filter(Boolean));
+  return {
+    photoCount:  photos.length,
+    videoCount:  items.filter(i => i.type === 'video').length,
+    contribCount: Math.max(1, uids.size),
+    coverItem:   photos[0] || null,
+  };
+}
+
 export async function searchGalleries(term) {
   const q = term.toLowerCase().trim();
   const snap = await getDocs(query(collection(db, 'galleries'), limit(200)));
@@ -224,6 +237,25 @@ export async function setGalleryCover(galleryId, coverUrl) {
 
 export async function updateGalleryDetails(galleryId, details) {
   await updateDoc(doc(db, 'galleries', galleryId), details);
+}
+
+// ── attendances ───────────────────────────────────────────────────────────────
+
+export async function attendGallery(uid, galleryId) {
+  await setDoc(doc(db, 'attendances', `${uid}_${galleryId}`), {
+    uid,
+    galleryId,
+    attendedAt: serverTimestamp(),
+  });
+}
+
+export async function unattendGallery(uid, galleryId) {
+  await deleteDoc(doc(db, 'attendances', `${uid}_${galleryId}`));
+}
+
+export async function getUserAttendances(uid) {
+  const snap = await getDocs(query(collection(db, 'attendances'), where('uid', '==', uid)));
+  return snap.docs.map(d => d.data().galleryId);
 }
 
 export async function createGallery(uid, { artistName, venue, city, monthYear }) {

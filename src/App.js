@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover, updateGalleryDetails, loadAllGalleries, getGalleryCoverItem } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover, updateGalleryDetails, loadAllGalleries, loadGalleryStats, attendGallery, unattendGallery, getUserAttendances } from './firebase';
 import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
 import HomeContainer        from './containers/HomeContainer';
@@ -48,6 +48,7 @@ class App extends React.Component {
     duplicateGallery:     null,
     createLoading:        false,
     userGalleries:        [],
+    attendedGalleryIds:   [],
     galleryItems:         {},   // { [galleryId]: ItemDoc[] }
     uploads:              {},   // { [fileId]: upload descriptor }
     publicProfileLoading: false,
@@ -150,21 +151,33 @@ class App extends React.Component {
           .map(d => this._firestoreGalleryToLocal(d))
           .sort((a, b) => b.createdAt - a.createdAt);
         this.setState({ galleries, galleriesLoading: false });
-        // For galleries with no stored coverUrl, fetch one image item to derive it
-        galleries.filter(g => !g.coverUrl).forEach(g => {
-          getGalleryCoverItem(g.id).then(item => {
-            if (!item) return;
-            const coverUrl = item.thumbnailUrl || item.displayUrl || null;
-            if (!coverUrl) return;
-            this.setState(s => ({
-              galleries:     s.galleries.map(x => x.id === g.id && !x.coverUrl ? { ...x, coverUrl } : x),
-              userGalleries: s.userGalleries.map(x => x.id === g.id && !x.coverUrl ? { ...x, coverUrl } : x),
-            }));
-            if (this.state.user) {
-              setGalleryCover(g.id, coverUrl).catch(err => console.error('setGalleryCover failed:', err));
-            } else {
-              this._pendingCoverWrites.set(g.id, coverUrl);
+        // Fetch real stats (photo/video/fan counts) and derive cover for galleries missing one
+        galleries.forEach(g => {
+          loadGalleryStats(g.id).then(({ photoCount, videoCount, contribCount, coverItem }) => {
+            const coverUrl = (!g.coverUrl && coverItem)
+              ? (coverItem.thumbnailUrl || coverItem.displayUrl || null)
+              : null;
+            if (coverUrl) {
+              if (this.state.user) {
+                setGalleryCover(g.id, coverUrl).catch(err => console.error('setGalleryCover failed:', err));
+              } else {
+                this._pendingCoverWrites.set(g.id, coverUrl);
+              }
             }
+            this.setState(s => ({
+              galleries: s.galleries.map(x => {
+                if (x.id !== g.id) return x;
+                const patch = { photoCount, videoCount, contribCount };
+                if (coverUrl && !x.coverUrl) patch.coverUrl = coverUrl;
+                return { ...x, ...patch };
+              }),
+              userGalleries: s.userGalleries.map(x => {
+                if (x.id !== g.id) return x;
+                const patch = { photoCount, videoCount, contribCount };
+                if (coverUrl && !x.coverUrl) patch.coverUrl = coverUrl;
+                return { ...x, ...patch };
+              }),
+            }));
           }).catch(() => {});
         });
       })
@@ -175,9 +188,10 @@ class App extends React.Component {
 
     this._unsubAuth = onAuthStateChanged(auth, async user => {
       if (user) {
-        const [stored, rawDocs] = await Promise.all([
+        const [stored, rawDocs, attendedIds] = await Promise.all([
           loadUserProfile(user.uid),
           getUserGalleries(user.uid),
+          getUserAttendances(user.uid),
         ]);
         const rawStored = stored?.username || '';
         const isLegacy  = /\s/.test(rawStored) || rawStored !== rawStored.toLowerCase();
@@ -206,6 +220,7 @@ class App extends React.Component {
           s => ({
             user,
             userGalleries,
+            attendedGalleryIds: attendedIds,
             profile: {
               name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
               username:     handle,
@@ -238,7 +253,7 @@ class App extends React.Component {
         );
       } else {
         this._storedUsername = '';
-        this.setState({ user: null, profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
+        this.setState({ user: null, attendedGalleryIds: [], profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
       }
     });
   }
@@ -409,6 +424,30 @@ class App extends React.Component {
     }
   };
 
+  handleAttendGallery = async () => {
+    const { user, activeId } = this.state;
+    if (!user || !activeId) return;
+    try {
+      await attendGallery(user.uid, activeId);
+      this.setState(s => ({ attendedGalleryIds: [...s.attendedGalleryIds, activeId] }));
+      this.flash('Marked as attended');
+    } catch {
+      this.flash('Could not save — try again');
+    }
+  };
+
+  handleUnattendGallery = async () => {
+    const { user, activeId } = this.state;
+    if (!user || !activeId) return;
+    try {
+      await unattendGallery(user.uid, activeId);
+      this.setState(s => ({ attendedGalleryIds: s.attendedGalleryIds.filter(id => id !== activeId) }));
+      this.flash('Removed from your concerts');
+    } catch {
+      this.flash('Could not save — try again');
+    }
+  };
+
   openFollowList = async (type) => {
     const { publicUid, user } = this.state;
     const targetUid = publicUid || user?.uid;
@@ -495,7 +534,7 @@ class App extends React.Component {
 
   handleSignOut = async () => {
     await signOutUser();
-    this.setState({ screen: 'home', user: null });
+    this.setState({ screen: 'home', user: null, attendedGalleryIds: [] });
     this.flash('Signed out');
   };
 
@@ -859,7 +898,7 @@ class App extends React.Component {
 
   // ── render ───────────────────────────────────────────────────────────────────
   render() {
-    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, galleriesLoading, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, galleryItems, uploads, publicProfileLoading, galleryLoading } = this.state;
+    const { screen, activeId, lb, slide, deleted, extra, toast, galleries, galleriesLoading, create, user, loginModal, loginLoading, loginError, profile, editLoading, avatarUploading, bannerUploading, usernameStatus, publicUid, publicProfile, followStatus, followerCount, followingCount, followListType, followList, followListLoading, searchQuery, searchResults, searchLoading, duplicateGallery, createLoading, userGalleries, attendedGalleryIds, galleryItems, uploads, publicProfileLoading, galleryLoading } = this.state;
 
     const isHome        = screen === 'home';
     const isConcert     = screen === 'gallery' || screen === 'create';
@@ -875,6 +914,13 @@ class App extends React.Component {
     const allGalleries = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
     const homeGalleries = [...allGalleries].sort((a, b) => b.createdAt - a.createdAt);
     const ag = allGalleries.find(g => g.id === activeId);
+
+    // Galleries to show on the user's profile: created + attended (deduped)
+    const attendedGalleries = attendedGalleryIds
+      .map(id => allGalleries.find(g => g.id === id))
+      .filter(Boolean)
+      .filter(g => !userGalleries.find(u => u.id === g.id));
+    const profileGalleries = [...userGalleries, ...attendedGalleries];
 
     const realItems = ag
       ? (galleryItems[ag.id] || [])
@@ -944,6 +990,9 @@ class App extends React.Component {
             onDelMedia={this.delMedia}
             onSetCover={this.handleSetCover}
             onUpdateDetails={this.handleUpdateGalleryDetails}
+            isAttended={activeId ? attendedGalleryIds.includes(activeId) : false}
+            onAttend={this.handleAttendGallery}
+            onUnattend={this.handleUnattendGallery}
             onSetArtist={this.setArtist}
             onSetVenue={this.setVenue}
             onSetCity={this.setCity}
@@ -964,7 +1013,7 @@ class App extends React.Component {
             user={user}
             profile={displayProfile}
             profileLoading={publicProfileLoading}
-            galleries={isOwnProfile ? userGalleries : []}
+            galleries={isOwnProfile ? profileGalleries : []}
             isOwn={isOwnProfile}
             slide={slide}
             followStatus={followStatus}

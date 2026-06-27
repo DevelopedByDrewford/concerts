@@ -6,6 +6,7 @@ export default function ConcertContainer({
   screen,
   gallery, galleryLoading = false, curMedia,
   user, onGoBack, onOpenLb, onAddMedia, onDelMedia, onSetCover, onUpdateDetails,
+  isAttended, onAttend, onUnattend,
   create, onSetArtist, onSetVenue, onSetCity, onSetMonth, onSetYear, onCreateSubmit,
   createLoading, duplicateGallery, onCloseDuplicate, onOpenDuplicateGallery,
   onFlash,
@@ -146,6 +147,20 @@ export default function ConcertContainer({
           </div>
           <span className="gallery__attendee-text">You and {gallery.contribCount - 1} others were here</span>
         </div>
+
+        {user && !curMedia.some(m => m.isOwn) && (
+          <div className="gallery__attend-wrap">
+            {isAttended ? (
+              <button onClick={onUnattend} className="gallery__attend-btn gallery__attend-btn--on">
+                ✓ You were here
+              </button>
+            ) : (
+              <button onClick={onAttend} className="gallery__attend-btn">
+                I Was There
+              </button>
+            )}
+          </div>
+        )}
 
         {(hasDetails || user) && (
           <div className="gallery__details">
