@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, limit, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, limit, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, uploadBytesResumable } from "firebase/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -171,6 +171,15 @@ export async function loadAllGalleries() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+export async function getGalleryCoverItem(galleryId) {
+  const snap = await getDocs(
+    query(collection(db, 'galleries', galleryId, 'items'), where('type', '==', 'image'), limit(1))
+  );
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
 export async function searchGalleries(term) {
   const q = term.toLowerCase().trim();
   const snap = await getDocs(query(collection(db, 'galleries'), limit(200)));
@@ -210,7 +219,11 @@ export async function findDuplicateGallery(artistName, venue, city, monthYear) {
 }
 
 export async function setGalleryCover(galleryId, coverUrl) {
-  await setDoc(doc(db, 'galleries', galleryId), { coverUrl }, { merge: true });
+  await updateDoc(doc(db, 'galleries', galleryId), { coverUrl });
+}
+
+export async function updateGalleryDetails(galleryId, details) {
+  await updateDoc(doc(db, 'galleries', galleryId), details);
 }
 
 export async function createGallery(uid, { artistName, venue, city, monthYear }) {

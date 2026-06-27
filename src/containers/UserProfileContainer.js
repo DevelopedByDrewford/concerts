@@ -185,8 +185,8 @@ export default function UserProfileContainer({
               <div
                 key={fi}
                 className="profile__featured-cover"
-                style={curFav.g.coverUrl ? {
-                  backgroundImage: `url(${curFav.g.coverUrl})`,
+                style={(curFav.g.imageUrl || curFav.g.coverUrl) ? {
+                  backgroundImage: `url(${curFav.g.imageUrl || curFav.g.coverUrl})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 } : { background: coverStr(curFav.g.h1, curFav.g.h2) }}
@@ -212,8 +212,8 @@ export default function UserProfileContainer({
             <div key={g.id} onClick={() => onGoBack(g.id)} className="concert-row">
               <div
                 className="concert-row__thumb"
-                style={g.coverUrl ? {
-                  backgroundImage: `url(${g.coverUrl})`,
+                style={(g.imageUrl || g.coverUrl) ? {
+                  backgroundImage: `url(${g.imageUrl || g.coverUrl})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 } : { background: coverStr(g.h1, g.h2) }}

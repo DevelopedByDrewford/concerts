@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover, loadAllGalleries } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, findGalleryBySlug, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl, setGalleryCover, updateGalleryDetails, loadAllGalleries, getGalleryCoverItem } from './firebase';
 import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
 import HomeContainer        from './containers/HomeContainer';
@@ -54,10 +54,11 @@ class App extends React.Component {
     galleryLoading:       false,
   };
 
-  _storedUsername = '';
-  _usernameTimer  = null;
-  _fromUrl        = '/';
-  _jobUnsubs      = {};   // fileId → unsubscribe fn for uploadJobs onSnapshot
+  _storedUsername    = '';
+  _usernameTimer     = null;
+  _fromUrl           = '/';
+  _jobUnsubs         = {};   // fileId → unsubscribe fn for uploadJobs onSnapshot
+  _pendingCoverWrites = new Map(); // galleryId → coverUrl, flushed once auth fires
 
   _slugify = (s) => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -80,7 +81,11 @@ class App extends React.Component {
     return {
       id: doc.id, artist: doc.artistName || '', venue: doc.venue || '',
       city: doc.city || '', month, year, h1, h2,
-      coverUrl: doc.coverUrl || null,
+      coverUrl:  doc.coverUrl  || null,
+      imageUrl:  doc.imageUrl  || null,
+      tourName:  doc.tourName  || null,
+      openers:   doc.openers   || null,
+      notes:     doc.notes     || null,
       createdAt: doc.createdAt?.toMillis?.() || 0,
       media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
     };
@@ -116,7 +121,10 @@ class App extends React.Component {
             : [...s.galleries, localGallery],
         }));
         loadGalleryItems(gallery.id)
-          .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [gallery.id]: items }, ...this._autoCoverPatch(s, gallery.id, items) })))
+          .then(items => {
+            this.setState(s => ({ galleryItems: { ...s.galleryItems, [gallery.id]: items } }));
+            this._maybeAutoSetCover(gallery.id, items);
+          })
           .catch(() => {});
       } else {
         window.history.replaceState(null, '', '/');
@@ -142,6 +150,23 @@ class App extends React.Component {
           .map(d => this._firestoreGalleryToLocal(d))
           .sort((a, b) => b.createdAt - a.createdAt);
         this.setState({ galleries, galleriesLoading: false });
+        // For galleries with no stored coverUrl, fetch one image item to derive it
+        galleries.filter(g => !g.coverUrl).forEach(g => {
+          getGalleryCoverItem(g.id).then(item => {
+            if (!item) return;
+            const coverUrl = item.thumbnailUrl || item.displayUrl || null;
+            if (!coverUrl) return;
+            this.setState(s => ({
+              galleries:     s.galleries.map(x => x.id === g.id && !x.coverUrl ? { ...x, coverUrl } : x),
+              userGalleries: s.userGalleries.map(x => x.id === g.id && !x.coverUrl ? { ...x, coverUrl } : x),
+            }));
+            if (this.state.user) {
+              setGalleryCover(g.id, coverUrl).catch(err => console.error('setGalleryCover failed:', err));
+            } else {
+              this._pendingCoverWrites.set(g.id, coverUrl);
+            }
+          }).catch(() => {});
+        });
       })
       .catch(() => this.setState({ galleriesLoading: false }));
 
@@ -167,33 +192,50 @@ class App extends React.Component {
             this._pendingGalleryPath = null;
             this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, galleryLoading: false, lb: null });
             loadGalleryItems(found.id)
-              .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items }, ...this._autoCoverPatch(s, found.id, items) })))
+              .then(items => {
+                this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items } }));
+                this._maybeAutoSetCover(found.id, items);
+              })
               .catch(() => {});
             return;
           }
           // Gallery not owned by this user — _resolvePendingGallery is already running.
           // Fall through so user/profile state is updated without disrupting the gallery load.
         }
-        this.setState(s => ({
-          user,
-          userGalleries,
-          profile: {
-            name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
-            username:     handle,
-            bio:          stored?.bio           || '',
-            location:     stored?.location      || '',
-            website:      stored?.website       || '',
-            websiteLabel: stored?.websiteLabel  || '',
-            avatarUrl:    stored?.profilePhotoUrl || null,
-            bannerUrl:    stored?.bannerUrl        || null,
-            nameFont:     stored?.nameFont         || '',
-          },
-          // On WKWebView (Chrome/Brave iOS), signInWithPopup opens a new tab instead of
-          // a true popup — window.opener is null so Firebase can't postMessage the result
-          // back, leaving the promise permanently hung. Auth still completes via IndexedDB.
-          // If the modal is still open when we receive a user, close it here.
-          ...(s.loginModal ? { loginModal: false, loginLoading: false, loginError: null, screen: 'profile', slide: 0, lb: null } : {}),
-        }));
+        this.setState(
+          s => ({
+            user,
+            userGalleries,
+            profile: {
+              name:         stored?.name         || (isLegacy ? rawStored : '') || user.displayName || '',
+              username:     handle,
+              bio:          stored?.bio           || '',
+              location:     stored?.location      || '',
+              website:      stored?.website       || '',
+              websiteLabel: stored?.websiteLabel  || '',
+              avatarUrl:    stored?.profilePhotoUrl || null,
+              bannerUrl:    stored?.bannerUrl        || null,
+              nameFont:     stored?.nameFont         || '',
+            },
+            // On WKWebView (Chrome/Brave iOS), signInWithPopup opens a new tab instead of
+            // a true popup — window.opener is null so Firebase can't postMessage the result
+            // back, leaving the promise permanently hung. Auth still completes via IndexedDB.
+            // If the modal is still open when we receive a user, close it here.
+            ...(s.loginModal ? { loginModal: false, loginLoading: false, loginError: null, screen: 'profile', slide: 0, lb: null } : {}),
+          }),
+          () => {
+            // Flush cover writes that were queued before auth fired
+            this._pendingCoverWrites.forEach((coverUrl, galleryId) => {
+              setGalleryCover(galleryId, coverUrl).catch(err => console.error('setGalleryCover failed:', err));
+            });
+            this._pendingCoverWrites.clear();
+            // Persist covers for any gallery items already loaded before auth
+            const { galleryItems } = this.state;
+            Object.entries(galleryItems).forEach(([galleryId, items]) => {
+              this._maybeAutoSetCover(galleryId, items);
+            });
+          }
+        );
       } else {
         this._storedUsername = '';
         this.setState({ user: null, profile: { name: '', username: '', bio: '', location: '', website: '', websiteLabel: '', avatarUrl: null } });
@@ -557,7 +599,10 @@ class App extends React.Component {
     this.setState({ screen: 'gallery', activeId: id, lb: null });
     window.scrollTo(0, 0);
     loadGalleryItems(id)
-      .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items }, ...this._autoCoverPatch(s, id, items) })))
+      .then(items => {
+        this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items } }));
+        this._maybeAutoSetCover(id, items);
+      })
       .catch(() => {});
   };
 
@@ -628,21 +673,24 @@ class App extends React.Component {
     }
   };
 
-  // Returns a partial state patch that auto-saves coverUrl from the first image
-  // when none is set. Fires the Firestore write as a side-effect.
-  _autoCoverPatch = (s, galleryId, items) => {
-    if (!s.user) return {};
-    const allGals = [...s.userGalleries, ...s.galleries.filter(g => !s.userGalleries.find(u => u.id === g.id))];
+  _maybeAutoSetCover = async (galleryId, items) => {
+    const { user, galleries, userGalleries } = this.state;
+    if (!user) return;
+    const allGals = [...userGalleries, ...galleries.filter(g => !userGalleries.find(u => u.id === g.id))];
     const gallery = allGals.find(g => g.id === galleryId);
-    if (!gallery || gallery.coverUrl) return {};
+    if (!gallery || gallery.coverUrl) return;
     const first = items.find(i => i.type === 'image');
     const coverUrl = first?.thumbnailUrl || first?.displayUrl || null;
-    if (!coverUrl) return {};
-    setGalleryCover(galleryId, coverUrl).catch(() => {});
-    return {
-      galleries:     s.galleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
-      userGalleries: s.userGalleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
-    };
+    if (!coverUrl) return;
+    try {
+      await setGalleryCover(galleryId, coverUrl);
+      this.setState(s => ({
+        galleries:     s.galleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
+        userGalleries: s.userGalleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
+      }));
+    } catch (err) {
+      console.error('Auto-set gallery cover failed:', err);
+    }
   };
 
   handleSetCover = async (itemId) => {
@@ -661,6 +709,29 @@ class App extends React.Component {
       this.flash('Cover updated');
     } catch {
       this.flash('Could not update cover — try again');
+    }
+  };
+
+  handleUpdateGalleryDetails = async (details) => {
+    const { activeId, user } = this.state;
+    if (!user || !activeId) return;
+    const payload = {
+      imageUrl: details.imageUrl || null,
+      tourName: details.tourName || null,
+      openers:  details.openers  || null,
+      notes:    details.notes    || null,
+    };
+    try {
+      await updateGalleryDetails(activeId, payload);
+      this.setState(s => ({
+        galleries:     s.galleries.map(g => g.id === activeId ? { ...g, ...payload } : g),
+        userGalleries: s.userGalleries.map(g => g.id === activeId ? { ...g, ...payload } : g),
+      }));
+      this.flash('Details saved');
+    } catch (err) {
+      console.error('updateGalleryDetails failed:', err);
+      this.flash('Could not save — try again');
+      throw err;
     }
   };
 
@@ -697,8 +768,9 @@ class App extends React.Component {
                 const uploads = { ...s.uploads };
                 delete uploads[fileId];
                 if (localUrl) URL.revokeObjectURL(localUrl);
-                return { uploads, galleryItems: { ...s.galleryItems, [activeId]: items }, ...this._autoCoverPatch(s, activeId, items) };
+                return { uploads, galleryItems: { ...s.galleryItems, [activeId]: items } };
               });
+              this._maybeAutoSetCover(activeId, items);
             });
           } else if (job.status === 'failed') {
             unsub();
@@ -756,7 +828,11 @@ class App extends React.Component {
         artist: artistName, venue, city,
         month: create.month, year: create.year,
         h1: 5, h2: 290,
-        coverUrl: null,
+        coverUrl:  null,
+        imageUrl:  null,
+        tourName:  null,
+        openers:   null,
+        notes:     null,
         createdAt: Date.now(),
         media: [], photoCount: 0, videoCount: 0, contribCount: 1, ownCount: 0,
       };
@@ -867,6 +943,7 @@ class App extends React.Component {
             onAddMedia={this.addMedia}
             onDelMedia={this.delMedia}
             onSetCover={this.handleSetCover}
+            onUpdateDetails={this.handleUpdateGalleryDetails}
             onSetArtist={this.setArtist}
             onSetVenue={this.setVenue}
             onSetCity={this.setCity}

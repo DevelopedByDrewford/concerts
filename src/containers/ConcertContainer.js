@@ -1,16 +1,19 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import './ConcertContainer.css';
 import { coverStr, tileStr, avStr } from '../utils/colorHelpers';
 
 export default function ConcertContainer({
   screen,
   gallery, galleryLoading = false, curMedia,
-  user, onGoBack, onOpenLb, onAddMedia, onDelMedia, onSetCover,
+  user, onGoBack, onOpenLb, onAddMedia, onDelMedia, onSetCover, onUpdateDetails,
   create, onSetArtist, onSetVenue, onSetCity, onSetMonth, onSetYear, onCreateSubmit,
   createLoading, duplicateGallery, onCloseDuplicate, onOpenDuplicateGallery,
   onFlash,
 }) {
   const fileInputRef = useRef(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState({ imageUrl: '', tourName: '', openers: '', notes: '' });
+  const [saving, setSaving] = useState(false);
 
   if (screen === 'gallery' && galleryLoading) {
     return (
@@ -59,7 +62,35 @@ export default function ConcertContainer({
 
   if (screen === 'gallery' && gallery) {
     const firstMedia = curMedia.find(m => !m.isUploading);
-    const effectiveCoverUrl = gallery.coverUrl || firstMedia?.thumbnailUrl || firstMedia?.displayUrl || null;
+    const effectiveCoverUrl = gallery.imageUrl || gallery.coverUrl || firstMedia?.thumbnailUrl || firstMedia?.displayUrl || null;
+    const hasDetails = gallery.imageUrl || gallery.tourName || gallery.openers || gallery.notes;
+
+    const openEdit = () => {
+      setForm({
+        imageUrl: gallery.imageUrl || '',
+        tourName: gallery.tourName || '',
+        openers:  gallery.openers  || '',
+        notes:    gallery.notes    || '',
+      });
+      setEditOpen(true);
+    };
+
+    const handleSave = async () => {
+      setSaving(true);
+      try {
+        await onUpdateDetails({
+          imageUrl: form.imageUrl.trim(),
+          tourName: form.tourName.trim(),
+          openers:  form.openers.trim(),
+          notes:    form.notes.trim(),
+        });
+        setEditOpen(false);
+      } catch {
+        // parent flashed error
+      } finally {
+        setSaving(false);
+      }
+    };
 
     return (
       <div className="gallery">
@@ -115,6 +146,24 @@ export default function ConcertContainer({
           </div>
           <span className="gallery__attendee-text">You and {gallery.contribCount - 1} others were here</span>
         </div>
+
+        {(hasDetails || user) && (
+          <div className="gallery__details">
+            {(gallery.tourName || gallery.openers) && (
+              <div className="gallery__details-show">
+                {gallery.tourName && <span className="gallery__details-tour">On the {gallery.tourName} Tour</span>}
+                {gallery.tourName && gallery.openers && <span> · </span>}
+                {gallery.openers && <span className="gallery__details-openers">with {gallery.openers}</span>}
+              </div>
+            )}
+            {gallery.notes && <p className="gallery__details-notes">{gallery.notes}</p>}
+            {user && (
+              <button onClick={openEdit} className="gallery__details-edit">
+                {hasDetails ? 'Edit details' : 'Add details'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="gallery__add-wrap">
           <button
@@ -186,6 +235,58 @@ export default function ConcertContainer({
             </div>
           ))}
         </div>
+
+        {editOpen && (
+          <div className="dup-backdrop" onClick={() => setEditOpen(false)}>
+            <div className="dup-sheet" onClick={e => e.stopPropagation()}>
+              <div className="dup-sheet__handle"><div className="dup-sheet__handle-bar" /></div>
+              <div className="dup-sheet__title">Gallery details</div>
+              <div className="gallery-details-sheet__fields">
+                <div>
+                  <label className="create__form-label">IMAGE URL</label>
+                  <input
+                    className="field-input"
+                    value={form.imageUrl}
+                    onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))}
+                    placeholder="https://… (overrides auto cover)"
+                  />
+                </div>
+                <div>
+                  <label className="create__form-label">TOUR NAME</label>
+                  <input
+                    className="field-input"
+                    value={form.tourName}
+                    onChange={e => setForm(f => ({ ...f, tourName: e.target.value }))}
+                    placeholder="e.g. The Eras Tour"
+                  />
+                </div>
+                <div>
+                  <label className="create__form-label">OPENER(S)</label>
+                  <input
+                    className="field-input"
+                    value={form.openers}
+                    onChange={e => setForm(f => ({ ...f, openers: e.target.value }))}
+                    placeholder="e.g. Gracie Abrams, MUNA"
+                  />
+                </div>
+                <div>
+                  <label className="create__form-label">NOTES</label>
+                  <textarea
+                    className="field-input gallery-details-sheet__textarea"
+                    value={form.notes}
+                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Notes about the show…"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <button onClick={handleSave} disabled={saving} className="btn-accent" style={{ width: '100%', marginTop: '20px' }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button onClick={() => setEditOpen(false)} className="dup-sheet__dismiss">Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

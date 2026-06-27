@@ -85,8 +85,8 @@ export default function HomeContainer({ galleries, galleriesLoading = false, use
             <div onClick={() => onOpenGallery(g.id)} className="home__gallery-card gallery-card">
               <div
                 className="home__gallery-cover"
-                style={g.coverUrl ? {
-                  backgroundImage: `url(${g.coverUrl})`,
+                style={(g.imageUrl || g.coverUrl) ? {
+                  backgroundImage: `url(${g.imageUrl || g.coverUrl})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 } : { background: coverStr(g.h1, g.h2) }}
@@ -122,8 +122,8 @@ export default function HomeContainer({ galleries, galleriesLoading = false, use
             <div key={g.id} onClick={() => onOpenGallery(g.id)} className="feed-card">
               <div
                 className="feed-cover"
-                style={g.coverUrl ? {
-                  backgroundImage: `url(${g.coverUrl})`,
+                style={(g.imageUrl || g.coverUrl) ? {
+                  backgroundImage: `url(${g.imageUrl || g.coverUrl})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 } : { background: coverStr(g.h1, g.h2) }}

@@ -20,10 +20,10 @@ service cloud.firestore {
         .hasOnly(['artistName', 'city', 'venue', 'monthYear']);
     }
 
-    function coverOnlyUpdate() {
+    function publicGalleryUpdate() {
       return request.resource.data.diff(resource.data)
         .affectedKeys()
-        .hasOnly(['coverUrl']);
+        .hasOnly(['coverUrl', 'imageUrl', 'tourName', 'openers', 'notes']);
     }
 
     function clientSafeUserUpdate() {
@@ -98,12 +98,12 @@ service cloud.firestore {
         && request.resource.data.smugmugAlbumUri == null;
 
       // Gallery creator may edit descriptive fields. Any authenticated user
-      // may update coverUrl (community-curated album cover).
+      // may update cover/details fields (coverUrl, imageUrl, tourName, openers, notes).
       allow update: if (isAuthed()
           && isUid(resource.data.createdBy)
           && request.resource.data.createdBy == resource.data.createdBy
           && clientSafeGalleryUpdate())
-        || (isAuthed() && coverOnlyUpdate());
+        || (isAuthed() && publicGalleryUpdate());
 
       allow delete: if false;
 
