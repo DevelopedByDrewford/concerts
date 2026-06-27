@@ -116,7 +116,7 @@ class App extends React.Component {
             : [...s.galleries, localGallery],
         }));
         loadGalleryItems(gallery.id)
-          .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [gallery.id]: items } })))
+          .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [gallery.id]: items }, ...this._autoCoverPatch(s, gallery.id, items) })))
           .catch(() => {});
       } else {
         window.history.replaceState(null, '', '/');
@@ -167,7 +167,7 @@ class App extends React.Component {
             this._pendingGalleryPath = null;
             this.setState({ user, userGalleries, screen: 'gallery', activeId: found.id, galleryLoading: false, lb: null });
             loadGalleryItems(found.id)
-              .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items } })))
+              .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [found.id]: items }, ...this._autoCoverPatch(s, found.id, items) })))
               .catch(() => {});
             return;
           }
@@ -557,7 +557,7 @@ class App extends React.Component {
     this.setState({ screen: 'gallery', activeId: id, lb: null });
     window.scrollTo(0, 0);
     loadGalleryItems(id)
-      .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items } })))
+      .then(items => this.setState(s => ({ galleryItems: { ...s.galleryItems, [id]: items }, ...this._autoCoverPatch(s, id, items) })))
       .catch(() => {});
   };
 
@@ -628,6 +628,23 @@ class App extends React.Component {
     }
   };
 
+  // Returns a partial state patch that auto-saves coverUrl from the first image
+  // when none is set. Fires the Firestore write as a side-effect.
+  _autoCoverPatch = (s, galleryId, items) => {
+    if (!s.user) return {};
+    const allGals = [...s.userGalleries, ...s.galleries.filter(g => !s.userGalleries.find(u => u.id === g.id))];
+    const gallery = allGals.find(g => g.id === galleryId);
+    if (!gallery || gallery.coverUrl) return {};
+    const first = items.find(i => i.type === 'image');
+    const coverUrl = first?.thumbnailUrl || first?.displayUrl || null;
+    if (!coverUrl) return {};
+    setGalleryCover(galleryId, coverUrl).catch(() => {});
+    return {
+      galleries:     s.galleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
+      userGalleries: s.userGalleries.map(g => g.id === galleryId ? { ...g, coverUrl } : g),
+    };
+  };
+
   handleSetCover = async (itemId) => {
     const { activeId, galleryItems, user } = this.state;
     if (!user || !activeId) return;
@@ -680,7 +697,7 @@ class App extends React.Component {
                 const uploads = { ...s.uploads };
                 delete uploads[fileId];
                 if (localUrl) URL.revokeObjectURL(localUrl);
-                return { uploads, galleryItems: { ...s.galleryItems, [activeId]: items } };
+                return { uploads, galleryItems: { ...s.galleryItems, [activeId]: items }, ...this._autoCoverPatch(s, activeId, items) };
               });
             });
           } else if (job.status === 'failed') {
