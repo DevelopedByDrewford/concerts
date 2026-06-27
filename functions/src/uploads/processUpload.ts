@@ -264,6 +264,7 @@ export const processUpload = onObjectFinalized(
         smugmugImageUri: uploadResult.imageUri,
         displayUrl:      uploadResult.displayUrl,
         thumbnailUrl:    uploadResult.thumbnailUrl,
+        videoUrl:        uploadResult.videoUrl ?? null,
         caption:         null,
         uploadedAt:      Timestamp.now(),
       };

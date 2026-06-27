@@ -40,6 +40,7 @@ export interface ItemDoc {
   smugmugImageUri: string;
   displayUrl:      string;
   thumbnailUrl:    string;
+  videoUrl?:       string | null;
   caption:         string | null;
   uploadedAt:      Timestamp;
 }

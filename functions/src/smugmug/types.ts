@@ -33,14 +33,22 @@ export interface SmugMugImageSize {
   Height: number;
 }
 
+export interface SmugMugVideo {
+  Url:    string;
+  Width:  number;
+  Height: number;
+}
+
 export interface SmugMugImage {
   ImageKey:     string;
   Uri:          string;
   ThumbnailUrl: string;
   WebUri:       string;
+  IsVideo?:     boolean;
   Uris: {
-    ImageSizes?: { Uri: string };
+    ImageSizes?:   { Uri: string; ImageSizes?: SmugMugImageSizes };
     LargestImage?: { Uri: string };
+    LargestVideo?: { Video?: SmugMugVideo };
   };
 }
 

@@ -154,6 +154,11 @@ export function callDeleteItem(itemId, galleryId) {
   return httpsCallable(functions, 'deleteItem')({ itemId, galleryId });
 }
 
+export async function callGetVideoUrl(galleryId, itemId) {
+  const result = await httpsCallable(functions, 'getVideoUrl')({ galleryId, itemId });
+  return result.data.videoUrl;
+}
+
 // ── galleries ─────────────────────────────────────────────────────────────────
 
 export async function getUserGalleries(uid) {

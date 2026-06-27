@@ -288,20 +288,25 @@ export async function resolveOrCreateSmugMugAlbum(
 export async function getImageUrls(
   config: OAuthConfig,
   imageUri: string, // e.g. "/api/v2/image/AbCdEf-0"
-): Promise<{ displayUrl: string; thumbnailUrl: string }> {
-  const url = `${API_BASE}${imageUri}?_expand=ImageSizes`;
+): Promise<{ displayUrl: string; thumbnailUrl: string; videoUrl?: string }> {
+  const url = `${API_BASE}${imageUri}?_expand=ImageSizes,LargestVideo`;
 
   const res = await apiRequest<
     SmugMugApiResponse<{
       Image: {
         ThumbnailUrl: string;
-        Uris: { ImageSizes?: { ImageSizes: SmugMugImageSizes } };
+        IsVideo?:     boolean;
+        Uris: {
+          ImageSizes?:   { ImageSizes: SmugMugImageSizes };
+          LargestVideo?: { Video?: { Url: string } };
+        };
       };
     }>
   >("GET", url, null, config);
 
-  const img   = res.Response.Image;
-  const sizes = img.Uris?.ImageSizes?.ImageSizes;
+  const img      = res.Response.Image;
+  const sizes    = img.Uris?.ImageSizes?.ImageSizes;
+  const videoUrl = img.Uris?.LargestVideo?.Video?.Url;
 
   const displayUrl =
     sizes?.ImageUrlX3Large?.Url ??
@@ -315,7 +320,23 @@ export async function getImageUrls(
     sizes?.ImageUrlTiny?.Url  ??
     img.ThumbnailUrl;
 
-  return { displayUrl, thumbnailUrl };
+  return { displayUrl, thumbnailUrl, ...(videoUrl ? { videoUrl } : {}) };
+}
+
+/** Fetch the playable MP4 URL for a video already in SmugMug. */
+export async function getLargestVideoUrl(
+  config:   OAuthConfig,
+  imageUri: string,
+): Promise<string> {
+  const url = `${API_BASE}${imageUri}?_expand=LargestVideo`;
+  const res = await apiRequest<
+    SmugMugApiResponse<{
+      Image: { Uris: { LargestVideo?: { Video?: { Url: string } } } };
+    }>
+  >("GET", url, null, config);
+  const videoUrl = res.Response.Image.Uris?.LargestVideo?.Video?.Url;
+  if (!videoUrl) throw new Error(`No LargestVideo URL for ${imageUri}`);
+  return videoUrl;
 }
 
 // ── upload ────────────────────────────────────────────────────────────────────
@@ -325,6 +346,7 @@ export interface UploadResult {
   imageUri:     string;
   displayUrl:   string;
   thumbnailUrl: string;
+  videoUrl?:    string;
 }
 
 /**

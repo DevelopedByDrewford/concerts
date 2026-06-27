@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem } from './firebase';
+import { auth, signInWithGoogle, signOutUser, loadUserProfile, saveUserProfile, uploadAvatar, uploadBanner, checkUsernameAvailable, callChangeUsername, getUserByUsername, getFollowStatus, followUser, unfollowUser, getFollowCounts, getFollowersList, getFollowingList, searchUsers, searchGalleries, getUserGalleries, findDuplicateGallery, createGallery, uploadToStaging, watchUploadJob, loadGalleryItems, callDeleteItem, callGetVideoUrl } from './firebase';
 import { uidToHue } from './utils/colorHelpers';
 import { onAuthStateChanged } from 'firebase/auth';
 import { INITIAL_GALLERIES } from './utils/galleryData';
@@ -483,6 +483,24 @@ class App extends React.Component {
   openLb  = (i) => this.setState({ lb: i });
   closeLb = () => this.setState({ lb: null });
 
+  handleGetVideoUrl = async (media) => {
+    const { activeId } = this.state;
+    try {
+      const videoUrl = await callGetVideoUrl(activeId, media.id);
+      this.setState(s => ({
+        galleryItems: {
+          ...s.galleryItems,
+          [activeId]: (s.galleryItems[activeId] || []).map(i =>
+            i.id === media.id ? { ...i, videoUrl } : i
+          ),
+        },
+      }));
+      return videoUrl;
+    } catch {
+      return null;
+    }
+  };
+
   _curMediaLength = () => {
     const { activeId, deleted, extra, galleryItems, uploads } = this.state;
     const ag = this._allGalleries().find(g => g.id === activeId);
@@ -665,7 +683,7 @@ class App extends React.Component {
           .filter(i => !deleted[i.id])
           .map(i => ({
             id: i.id, type: i.type === 'image' ? 'photo' : 'video',
-            displayUrl: i.displayUrl, thumbnailUrl: i.thumbnailUrl,
+            displayUrl: i.displayUrl, thumbnailUrl: i.thumbnailUrl, videoUrl: i.videoUrl || null,
             isOwn: i.uploaderUid === user?.uid,
             ownerUid: i.uploaderUid, ownerName: i.uploaderUid === user?.uid ? 'you' : '',
             ownerH: uidToHue(i.uploaderUid || ''),
@@ -786,6 +804,7 @@ class App extends React.Component {
             onPrev={this.prevLb}
             onNext={this.nextLb}
             onDelete={this.delMedia}
+            onGetVideoUrl={this.handleGetVideoUrl}
           />
         )}
 

@@ -172,7 +172,7 @@ export default function ConcertContainer({
               <label className="create__form-label">YEAR</label>
               <div className="create__select-wrap">
                 <select value={create.year} onChange={onSetYear} className="create__select">
-                  {['2026','2025','2024','2023'].map(y => (
+                  {['2026','2025','2024','2023', '2022', '2021'].map(y => (
                     <option key={y} value={y} style={{ color: '#000' }}>{y}</option>
                   ))}
                 </select>

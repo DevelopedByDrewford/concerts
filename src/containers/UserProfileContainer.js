@@ -90,7 +90,7 @@ export default function UserProfileContainer({
             {isOwn ? (
               <div className="profile__actions">
                 <button onClick={onGoEditProfile} className="profile__edit-btn edit-btn">Edit</button>
-                <button onClick={onSignOut} className="profile__signout-btn">Out</button>
+                <button onClick={onSignOut} className="profile__signout-btn">Sign Out</button>
               </div>
             ) : user && (
               <button
